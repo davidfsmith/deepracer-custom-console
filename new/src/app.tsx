@@ -24,6 +24,7 @@ export default function App() {
             <Route index path="/calibration" element={<CalibrationPage />} />
             <Route index path="/models" element={<ModelsPage />} />
             <Route index path="/home" element={<HomePage />} />
+            <Route index path="/" element={<HomePage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </div>
