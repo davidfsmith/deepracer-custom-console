@@ -1,9 +1,9 @@
 {
   "id": "/",
   "start_url": "/",
-  "name": "DeepRacer on the Spot",
-  "short_name": "DOTS",
-  "description": "DeepRacer on the Spot - run AWS DeepRacer training on EC2 for greater flexibility and lower cost",
+  "name": "AWS DeepRacer",
+  "short_name": "AWS DeepRacer",
+  "description": "AWS DeepRacer",
   "theme_color": "#000000",
   "background_color": "#ffffff",
   "display": "standalone",

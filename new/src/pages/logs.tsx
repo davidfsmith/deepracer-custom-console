@@ -4,8 +4,17 @@ import { TextContent } from "@cloudscape-design/components";
 import BaseAppLayout from "../components/base-app-layout";
 import Button from "@cloudscape-design/components/button";
 
-class LogsPage extends React.Component {
-  constructor(props) {
+interface LogsPageProps {}
+
+interface LogsPageState {
+  sysLogs: string;
+  sysLogCopied: boolean;
+}
+
+class LogsPage extends React.Component<LogsPageProps, LogsPageState> {
+  private sysInputRef: React.RefObject<HTMLPreElement>;
+
+  constructor(props: LogsPageProps) {
     super(props);
     this.state = {
       sysLogs: "",
