@@ -30,7 +30,7 @@ class LogsPage extends React.Component<LogsPageProps, LogsPageState> {
   getSysLogs = () => {
     axios.get('/api/logs/SYS/200')
       .then(response => {
-        this.setState({ sysLogs: response.data.logs });
+        this.setState({ sysLogs: response.data.data });
       })
       .catch(error => {
         console.error("There was an error fetching the logs!", error);
@@ -59,7 +59,7 @@ class LogsPage extends React.Component<LogsPageProps, LogsPageState> {
               <div style={{ display: 'flex', gap: '8px' }}>
                 <Button onClick={this.sysLogCopyBtnClicked}>Copy</Button>
                 <Button onClick={this.getSysLogs}>Refresh</Button>
-                {this.state.sysLogCopied}
+                {this.state.sysLogCopied && <span>Copied!</span>}
               </div>
             </div>
             <pre ref={this.sysInputRef}>{this.state.sysLogs}</pre>
