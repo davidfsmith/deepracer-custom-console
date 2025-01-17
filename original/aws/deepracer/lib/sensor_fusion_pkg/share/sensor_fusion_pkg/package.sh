@@ -69,7 +69,7 @@ unset _colcon_package_sh_COLCON_CURRENT_PREFIX
 _colcon_package_sh_source_script() {
   if [ -f "$1" ]; then
     if [ -n "$COLCON_TRACE" ]; then
-      echo ". \"$1\""
+      echo "# . \"$1\""
     fi
     . "$@"
   else
@@ -78,8 +78,8 @@ _colcon_package_sh_source_script() {
 }
 
 # source sh hooks
-_colcon_package_sh_source_script "$COLCON_CURRENT_PREFIX/share/sensor_fusion_pkg/hook/pythonpath.sh"
-_colcon_package_sh_source_script "$COLCON_CURRENT_PREFIX/share/sensor_fusion_pkg/hook/ament_prefix_path.sh"
+_colcon_package_sh_source_script "$COLCON_CURRENT_PREFIX/share/sensor_fusion_pkg/hook/cmake_prefix_path.sh"
+_colcon_package_sh_source_script "$COLCON_CURRENT_PREFIX/share/sensor_fusion_pkg/local_setup.sh"
 
 unset _colcon_package_sh_source_script
 unset COLCON_CURRENT_PREFIX
