@@ -59,7 +59,7 @@ class LogsPage extends React.Component<LogsPageProps, LogsPageState> {
               <div style={{ display: 'flex', gap: '8px' }}>
                 <Button onClick={this.sysLogCopyBtnClicked}>Copy</Button>
                 <Button onClick={this.getSysLogs}>Refresh</Button>
-                {this.state.sysLogCopied && <span>Copied!</span>}
+                {this.state.sysLogCopied}
               </div>
             </div>
             <pre ref={this.sysInputRef}>{this.state.sysLogs}</pre>
