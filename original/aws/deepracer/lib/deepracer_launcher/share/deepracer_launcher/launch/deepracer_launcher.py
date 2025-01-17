@@ -24,7 +24,10 @@ def generate_launch_description():
         package='camera_pkg',
         namespace='camera_pkg',
         executable='camera_node',
-        name='camera_node'
+        name='camera_node',
+        parameters=[
+            {'resize_images': True}
+        ]
     )
     ctrl_node = Node(
         package='ctrl_pkg',
@@ -61,6 +64,12 @@ def generate_launch_description():
         namespace='deepracer_systems_pkg',
         executable='network_monitor_node',
         name='network_monitor_node'
+    )
+    deepracer_systems_scripts_node = Node(
+        package='deepracer_systems_pkg',
+        namespace='deepracer_systems_pkg',
+        executable='deepracer_systems_scripts_node',
+        name='deepracer_systems_scripts_node'
     )
     device_info_node = Node(
         package='device_info_pkg',
@@ -142,6 +151,7 @@ def generate_launch_description():
     ld.add_action(model_loader_node)
     ld.add_action(otg_control_node)
     ld.add_action(network_monitor_node)
+    ld.add_action(deepracer_systems_scripts_node)
     ld.add_action(device_info_node)
     ld.add_action(battery_node)
     ld.add_action(inference_node)
