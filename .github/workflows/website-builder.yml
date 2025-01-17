@@ -22,6 +22,7 @@ jobs:
           npm install
           npm run build
           cd dist
+          rm ../../deepracer-console-new.zip
           zip -r ../../deepracer-console-new.zip .
       - name: Commit updated website
         run: |
