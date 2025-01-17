@@ -1,4 +1,4 @@
-import { HashRouter, BrowserRouter, Routes, Route } from "react-router-dom";
+import { HashRouter, BrowserRouter, Routes, Route} from "react-router-dom";
 import { USE_BROWSER_ROUTER } from "./common/constants";
 import GlobalHeader from "./components/global-header";
 import HomePage from "./pages/home";
