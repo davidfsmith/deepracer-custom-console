@@ -23,7 +23,7 @@ export default function GlobalHeader() {
       <TopNavigation
         identity={{
           href: "/",
-          logo: { src: "/images/deepracer.png", alt: `${APP_NAME} Logo` },
+          logo: { src: "/static/images/deepracer.png", alt: `${APP_NAME} Logo` },
         }}
         utilities={[
           {
