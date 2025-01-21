@@ -4,7 +4,7 @@ import Button from "@cloudscape-design/components/button";
 import * as React from "react";
 import axios from "axios";
 
-class ModelsPage extends React.Component {
+class Models extends React.Component {
   state = {
     models: [],
     selectedModels: [],
@@ -31,40 +31,91 @@ class ModelsPage extends React.Component {
       });
       if (response.data.success) {
         this.getModels(); // Refresh the model list after deletion
-        this.setState({
-          flashMessages: [...this.state.flashMessages, { type: 'success', content: 'Models deleted successfully' }]
-        });
-      } else {
-        this.setState({
-          flashMessages: [...this.state.flashMessages, { type: 'error', content: 'Failed to delete models' }]
-        });
       }
     } catch (error) {
       console.error("Error deleting models:", error);
-      this.setState({
-        flashMessages: [...this.state.flashMessages, { type: 'error', content: 'Error deleting models' }]
-      });
     }
   };
 
-  uploadModel = async (file: File) => {
-    const formData = new FormData();
-    formData.append('file', file);
+  isModelInstalled = (selectedFileName) => {
+    const modelName = selectedFileName.endsWith('.tar.gz') ? selectedFileName.slice(0, -7) : selectedFileName;
+    return axios.get('/api/is_model_installed', {
+      params: {
+        filename: modelName
+      }
+    });
+  };
+
+  handleFileUpload = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    if (!file.name.endsWith(".tar.gz")) {
+      this.setState({
+        flashMessages: [
+          ...this.state.flashMessages,
+          { type: "error", content: "Incorrect model format, please select a tar.gz file" }
+        ]
+      });
+      return;
+    }
 
     try {
-      const response = await axios.post('/api/uploadModels', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-
+      const response = await this.isModelInstalled(file.name);
+      console.log('isModelInstalled response:', response.data); // Debugging log
       if (response.data.success) {
-        console.log('Model uploaded successfully:', response.data.message);
-      } else {
-        console.error('Failed to upload model:', response.data.message);
+        this.setState({
+          flashMessages: [
+            ...this.state.flashMessages,
+            { type: "error", content: response.data.message }
+          ]
+        });
+        return;
+      } 
+
+      const formData = new FormData();
+      formData.append("file", file);
+
+      try {
+        const uploadResponse = await axios.put("/api/uploadModels", formData, {
+          headers: {
+            'Content-Disposition': `form-data; name="file"; filename="${file.name}"`,
+            'Content-Type': 'application/x-gzip'
+          }
+        });
+        if (uploadResponse.data.success) {
+          this.setState({
+            flashMessages: [
+              ...this.state.flashMessages,
+              { type: "success", content: "Model uploaded successfully" }
+            ]
+          });
+          this.getModels(); // Refresh the model list after upload
+        } else {
+          this.setState({
+            flashMessages: [
+              ...this.state.flashMessages,
+              { type: "error", content: uploadResponse.data.message }
+            ]
+          });
+        }
+      } catch (uploadError) {
+        console.error('Error uploading model:', uploadError);
+        this.setState({
+          flashMessages: [
+            ...this.state.flashMessages,
+            { type: "error", content: uploadError.message }
+          ]
+        });
       }
     } catch (error) {
-      console.error('Error uploading model:', error);
+      console.error('Error checking if model is installed:', error);
+      this.setState({
+        flashMessages: [
+          ...this.state.flashMessages,
+          { type: "error", content: error.message }
+        ]
+      });
     }
   };
 
@@ -93,7 +144,13 @@ class ModelsPage extends React.Component {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h2>Reinforcement learning models</h2>
               <div style={{ display: 'flex', gap: '8px' }}>
-                <Button onClick={this.uploadModel}> Upload Model</Button>
+                <input
+                    type="file"
+                    style={{ display: 'none' }}
+                    ref={(input) => (this.fileInput = input)}
+                    onChange={this.handleFileUpload}
+                  />
+                <Button onClick={() => this.fileInput.click()}>Upload Model</Button>
                 <Button onClick={this.deleteModels} disabled={selectedModels.length === 0}>Delete</Button>
                 <Button onClick={this.getModels}>Refresh</Button>
               </div>
@@ -122,4 +179,4 @@ class ModelsPage extends React.Component {
   }
 }
 
-export default ModelsPage;
+export default Models;
