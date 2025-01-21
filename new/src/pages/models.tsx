@@ -3,12 +3,31 @@ import BaseAppLayout from "../components/base-app-layout";
 import Button from "@cloudscape-design/components/button";
 import * as React from "react";
 import axios from "axios";
+import { FlashbarProps } from '@cloudscape-design/components';
 
-class Models extends React.Component {
-  state = {
+// Define the types for models and selectedModels
+interface Model {
+  name: string;
+  sensors: string;
+  training_algorithm: string;
+  action_space_type: string;
+  size: string;
+  creation_time: number;
+}
+
+interface State {
+  models: Model[];
+  selectedModels: Model[];
+  flashMessages: FlashbarProps.MessageDefinition[];
+}
+
+class Models extends React.Component<{}, State> {
+  fileInput: HTMLInputElement | null = null;
+
+  state: State = {
     models: [],
     selectedModels: [],
-    flashMessages: [],
+    flashMessages: []
   };
 
   componentDidMount() {
@@ -37,7 +56,7 @@ class Models extends React.Component {
     }
   };
 
-  isModelInstalled = (selectedFileName) => {
+  isModelInstalled = (selectedFileName: string) => {
     const modelName = selectedFileName.endsWith('.tar.gz') ? selectedFileName.slice(0, -7) : selectedFileName;
     return axios.get('/api/is_model_installed', {
       params: {
@@ -46,8 +65,8 @@ class Models extends React.Component {
     });
   };
 
-  handleFileUpload = async (event) => {
-    const file = event.target.files[0];
+  handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
     if (!file) return;
 
     if (!file.name.endsWith(".tar.gz")) {
@@ -99,7 +118,7 @@ class Models extends React.Component {
             ]
           });
         }
-      } catch (uploadError) {
+      } catch (uploadError: any) {
         console.error('Error uploading model:', uploadError);
         this.setState({
           flashMessages: [
@@ -108,7 +127,7 @@ class Models extends React.Component {
           ]
         });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error checking if model is installed:', error);
       this.setState({
         flashMessages: [
@@ -119,14 +138,14 @@ class Models extends React.Component {
     }
   };
 
-  handleSelectionChange = ({ detail }) => {
+  handleSelectionChange = ({ detail }: { detail: { selectedItems: Model[] } }) => {
     this.setState({ selectedModels: detail.selectedItems });
   };
 
-  formatDate = (epochTime) => {
+  formatDate = (epochTime: number) => {
     const date = new Date(epochTime * 1000); // Convert epoch time to milliseconds
-    const options = { year: 'numeric', month: 'long', day: '2-digit' };
-    const timeOptions = { hour: '2-digit', minute: '2-digit', hour12: true };
+    const options: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'long', day: '2-digit' };
+    const timeOptions: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit', hour12: true };
     const formattedDate = date.toLocaleDateString('en-US', options);
     const formattedTime = date.toLocaleTimeString('en-US', timeOptions);
     return `${formattedDate} ${formattedTime}`;
@@ -150,7 +169,7 @@ class Models extends React.Component {
                     ref={(input) => (this.fileInput = input)}
                     onChange={this.handleFileUpload}
                   />
-                <Button onClick={() => this.fileInput.click()}>Upload Model</Button>
+                <Button onClick={() => this.fileInput?.click()}>Upload Model</Button>
                 <Button onClick={this.deleteModels} disabled={selectedModels.length === 0}>Delete</Button>
                 <Button onClick={this.getModels}>Refresh</Button>
               </div>
