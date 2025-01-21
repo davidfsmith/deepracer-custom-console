@@ -1,9 +1,8 @@
-import { TextContent, Table, Flashbar } from "@cloudscape-design/components";
+import { TextContent, Table, Flashbar, FlashbarProps } from "@cloudscape-design/components";
 import BaseAppLayout from "../components/base-app-layout";
 import Button from "@cloudscape-design/components/button";
 import * as React from "react";
 import axios from "axios";
-import { FlashbarProps } from '@cloudscape-design/components';
 
 // Define the types for models and selectedModels
 interface Model {
@@ -19,14 +18,6 @@ interface State {
   models: Model[];
   selectedModels: Model[];
   flashMessages: FlashbarProps.MessageDefinition[];
-}
-
-interface FlashbarProps {
-  MessageDefinition: {
-    id: string;
-    type: string;
-    content: string;
-  };
 }
 
 class Models extends React.Component<{}, State> {
@@ -64,22 +55,12 @@ class Models extends React.Component<{}, State> {
       });
       if (response.data.success) {
         this.getModels(); // Refresh the model list after deletion
-        this.setState({
-          flashMessages: [
-            ...this.state.flashMessages,
-            { type: "success", content: "Model deleted successfully" }
-          ]
-        });
+        this.addFlashMessage("Model deleted successfully", "success");
       }
     } catch (error) {
       console.error("Error deleting models:", error);
       this.getModels(); // Refresh the model list after deletion
-      this.setState({
-        flashMessages: [
-          ...this.state.flashMessages,
-          { type: "success", content: "Error deleting model" }
-        ]
-      });
+      this.addFlashMessage("Error deleting model", "error");
     }
   };
 
@@ -107,12 +88,7 @@ class Models extends React.Component<{}, State> {
     if (!file) return;
 
     if (!file.name.endsWith(".tar.gz")) {
-      this.setState({
-        flashMessages: [
-          ...this.state.flashMessages,
-          { type: "error", content: "Incorrect model format, please select a tar.gz file" }
-        ]
-      });
+      this.addFlashMessage("Incorrect model format, please select a tar.gz file", "error");
       return;
     }
 
@@ -120,12 +96,7 @@ class Models extends React.Component<{}, State> {
       const response = await this.isModelInstalled(file.name);
       console.log('isModelInstalled response:', response.data); // Debugging log
       if (response.data.success) {
-        this.setState({
-          flashMessages: [
-            ...this.state.flashMessages,
-            { type: "error", content: response.data.message }
-          ]
-        });
+        this.addFlashMessage(response.data.message, "error");
         return;
       } 
 
@@ -135,12 +106,7 @@ class Models extends React.Component<{}, State> {
       try {
         const csrfToken = this.getCsrfToken();
         if (!csrfToken) {
-          this.setState({
-            flashMessages: [
-              ...this.state.flashMessages,
-              { type: "error", content: "CSRF token not found" }
-            ]
-          });
+          this.addFlashMessage("CSRF token not found", "error");
           return;
         }
 
@@ -152,38 +118,18 @@ class Models extends React.Component<{}, State> {
           }
         });
         if (uploadResponse.data.success) {
-          this.setState({
-            flashMessages: [
-              ...this.state.flashMessages,
-              { type: "success", content: "Model uploaded successfully" }
-            ]
-          });
+          this.addFlashMessage("Model uploaded successfully", "success");
           this.getModels(); // Refresh the model list after upload
         } else {
-          this.setState({
-            flashMessages: [
-              ...this.state.flashMessages,
-              { type: "error", content: uploadResponse.data.message }
-            ]
-          });
+          this.addFlashMessage(uploadResponse.data.message, "error");
         }
       } catch (uploadError: any) {
         console.error('Error uploading model:', uploadError);
-        this.setState({
-          flashMessages: [
-            ...this.state.flashMessages,
-            { type: "error", content: uploadError.message }
-          ]
-        });
+        this.addFlashMessage(uploadError.message, "error");
       }
     } catch (error: any) {
       console.error('Error checking if model is installed:', error);
-      this.setState({
-        flashMessages: [
-          ...this.state.flashMessages,
-          { type: "error", content: error.message }
-        ]
-      });
+      this.addFlashMessage(error.message, "error");
     }
   };
 
@@ -200,6 +146,20 @@ class Models extends React.Component<{}, State> {
     return `${formattedDate} ${formattedTime}`;
   };
 
+  addFlashMessage = (content: string, type: FlashbarProps.Type) => {
+    const id = Date.now().toString(); // Use epoch time as unique id
+    const newMessage: FlashbarProps.MessageDefinition = {
+      id,
+      content,
+      type,
+      dismissible: true,
+      onDismiss: () => this.removeFlashMessage(id)
+    };
+    this.setState((prevState) => ({
+      flashMessages: [...prevState.flashMessages, newMessage]
+    }));
+  };
+
   removeFlashMessage = (id: string) => {
     this.setState((prevState) => ({
       flashMessages: prevState.flashMessages.filter(message => message.id !== id)
@@ -209,12 +169,7 @@ class Models extends React.Component<{}, State> {
   renderFlashMessages() {
     return (
       <Flashbar
-        items={this.state.flashMessages.map(message => ({
-          content: message.content,
-          dismissible: true,
-          onDismiss: () => this.removeFlashMessage(message.id),
-          id: message.id
-        }))}
+        items={this.state.flashMessages}
       />
     );
   }
