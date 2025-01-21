@@ -21,6 +21,14 @@ interface State {
   flashMessages: FlashbarProps.MessageDefinition[];
 }
 
+interface FlashbarProps {
+  MessageDefinition: {
+    id: string;
+    type: string;
+    content: string;
+  };
+}
+
 class Models extends React.Component<{}, State> {
   fileInput: HTMLInputElement | null = null;
 
@@ -44,15 +52,34 @@ class Models extends React.Component<{}, State> {
   };
 
   deleteModels = async () => {
+    const csrfToken = this.getCsrfToken();
+    if (!csrfToken) {
+      console.error('CSRF token meta tag not found');
+      return;
+    }
     try {
       const response = await axios.post("/api/deleteModels", {
-        filenames: this.state.selectedModels.map(model => model.name)
+        filenames: this.state.selectedModels.map(model => model.name),
+        'X-CSRF-Token': csrfToken
       });
       if (response.data.success) {
         this.getModels(); // Refresh the model list after deletion
+        this.setState({
+          flashMessages: [
+            ...this.state.flashMessages,
+            { type: "success", content: "Model deleted successfully" }
+          ]
+        });
       }
     } catch (error) {
       console.error("Error deleting models:", error);
+      this.getModels(); // Refresh the model list after deletion
+      this.setState({
+        flashMessages: [
+          ...this.state.flashMessages,
+          { type: "success", content: "Error deleting model" }
+        ]
+      });
     }
   };
 
@@ -173,14 +200,33 @@ class Models extends React.Component<{}, State> {
     return `${formattedDate} ${formattedTime}`;
   };
 
+  removeFlashMessage = (id: string) => {
+    this.setState((prevState) => ({
+      flashMessages: prevState.flashMessages.filter(message => message.id !== id)
+    }));
+  };
+
+  renderFlashMessages() {
+    return (
+      <Flashbar
+        items={this.state.flashMessages.map(message => ({
+          content: message.content,
+          dismissible: true,
+          onDismiss: () => this.removeFlashMessage(message.id),
+          id: message.id
+        }))}
+      />
+    );
+  }
+
   render() {
-    const { models, selectedModels, flashMessages } = this.state;
+    const { models, selectedModels } = this.state;
 
     return (
       <BaseAppLayout
         content={
           <TextContent>
-            <Flashbar items={flashMessages} />
+            {this.renderFlashMessages()}
             <h1>Models</h1>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h2>Reinforcement learning models</h2>
