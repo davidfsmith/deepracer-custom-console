@@ -65,6 +65,11 @@ class Models extends React.Component<{}, State> {
     });
   };
 
+  getCsrfToken = () => {
+    // Example: Get CSRF token from a meta tag
+    return document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+  };
+
   handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -96,10 +101,12 @@ class Models extends React.Component<{}, State> {
       formData.append("file", file);
 
       try {
+        const csrfToken = this.getCsrfToken();
         const uploadResponse = await axios.put("/api/uploadModels", formData, {
           headers: {
             'Content-Disposition': `form-data; name="file"; filename="${file.name}"`,
-            'Content-Type': 'application/x-gzip'
+            'Content-Type': 'application/x-gzip',
+            'X-CSRF-Token': csrfToken
           }
         });
         if (uploadResponse.data.success) {
