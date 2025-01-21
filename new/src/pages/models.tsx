@@ -66,8 +66,13 @@ class Models extends React.Component<{}, State> {
   };
 
   getCsrfToken = () => {
-    // Example: Get CSRF token from a meta tag
-    return document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+    const metaTag = document.querySelector('meta[name="csrf-token"]');
+    if (metaTag) {
+      return metaTag.getAttribute('content');
+    } else {
+      console.error('CSRF token meta tag not found');
+      return null;
+    }
   };
 
   handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -102,6 +107,16 @@ class Models extends React.Component<{}, State> {
 
       try {
         const csrfToken = this.getCsrfToken();
+        if (!csrfToken) {
+          this.setState({
+            flashMessages: [
+              ...this.state.flashMessages,
+              { type: "error", content: "CSRF token not found" }
+            ]
+          });
+          return;
+        }
+
         const uploadResponse = await axios.put("/api/uploadModels", formData, {
           headers: {
             'Content-Disposition': `form-data; name="file"; filename="${file.name}"`,
