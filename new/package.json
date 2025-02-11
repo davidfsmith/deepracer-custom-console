@@ -11,14 +11,15 @@
     "format": "npx prettier --ignore-path .gitignore --write \"**/*.+(tsx|js|ts|json)\""
   },
   "dependencies": {
-    "@cloudscape-design/components": "^3.0.611",
+    "@cloudscape-design/components": "^3.0.878",
     "@cloudscape-design/design-tokens": "^3.0.35",
-    "@cloudscape-design/global-styles": "^1.0.27",
+    "@cloudscape-design/global-styles": "^1.0.34",
     "axios": "^1.7.9",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-joystick-component": "^6.2.1",
-    "react-router-dom": "^6.22.0"
+    "react-router-dom": "^6.22.0",
+    "sass": "^1.83.4"
   },
   "devDependencies": {
     "@types/react": "^18.2.55",
@@ -31,7 +32,6 @@
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-react-refresh": "^0.4.5",
     "postcss": "^8.4.35",
-    "sass": "^1.70.0",
     "typescript": "^5.2.2",
     "vite": "^5.4.8"
   },
