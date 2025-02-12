@@ -3,13 +3,15 @@ import {
   SideNavigationProps,
 } from "@cloudscape-design/components";
 import { useNavigationPanelState } from "../common/hooks/use-navigation-panel-state";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useOnFollow } from "../common/hooks/use-on-follow";
 import { APP_NAME } from "../common/constants";
 import { useLocation } from "react-router-dom";
 import Button from "@cloudscape-design/components/button";
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import ProgressBar from "@cloudscape-design/components/progress-bar";
+import TextContent from "@cloudscape-design/components/text-content";
 
 export default function NavigationPanel() {
   const location = useLocation();
@@ -17,6 +19,10 @@ export default function NavigationPanel() {
   const [navigationPanelState, setNavigationPanelState] =
     useNavigationPanelState();
   const navigate = useNavigate();
+  const [batteryLevel, setBatteryLevel] = useState<number>(0);
+  const [batteryError, setBatteryError] = useState<boolean>(false);
+  const [ssid, setSsid] = useState<string>('');
+  const [ipAddresses, setIpAddresses] = useState<string[]>([]);
 
   const handleLogout = async () => {
     try {
@@ -27,6 +33,57 @@ export default function NavigationPanel() {
     }
     navigate('/login');
   };
+
+  const updateBatteryStatus = async () => {
+    const batteryData = await getBatteryStatus();
+    if (batteryData && batteryData.success) {
+      if (batteryData.battery_level === -1) {
+        setBatteryError(true);
+        setBatteryLevel(0);
+      } else {
+        setBatteryError(false);
+        setBatteryLevel((batteryData.battery_level / 10) * 100);
+      }
+    }
+  };
+
+  const getBatteryStatus = async () => {
+    try {
+      const response = await axios.get('/api/get_battery_level');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching battery status:', error);
+      return null;
+    }
+  };
+
+  const getNetworkStatus = async () => {
+    try {
+      const response = await axios.get('/api/get_network_details');
+      if (response.data && response.data.success) {
+        setSsid(response.data.SSID);
+        // Split the IP addresses string and trim whitespace
+        setIpAddresses(response.data.ip_address.split(',').map((ip: string) => ip.trim()));
+      }
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching network status:', error);
+      return null;
+    }
+  };
+
+  useEffect(() => {
+    updateBatteryStatus();
+    getNetworkStatus();
+    const interval = setInterval(updateBatteryStatus, 10000);
+    const network_interval = setInterval(getNetworkStatus, 10000);
+    
+    // Return a cleanup function that clears both intervals
+    return () => {
+        clearInterval(interval);
+        clearInterval(network_interval);
+    };
+  }, []);
 
   const [items] = useState<SideNavigationProps.Item[]>(() => {
     const items: SideNavigationProps.Item[] = [
@@ -72,12 +129,6 @@ export default function NavigationPanel() {
         external: true,
       },
       { type: "divider" },
-      {
-        type: "link",
-        text: "IP:",
-        href: "https://",
-        external: true,
-      },
     );
     return items;
   });
@@ -113,6 +164,21 @@ export default function NavigationPanel() {
         })}
       />
       <div style={{ marginLeft: "20px" }}>
+        <TextContent>
+          <p>SSID: {ssid}</p>
+          {ipAddresses.map((ip, index) => (
+            <p key={index}>IP: {ip}</p>
+          ))}
+        </TextContent>
+        <ProgressBar
+          value={batteryLevel}
+          description="Current Battery Charge"
+          label="Battery Status"
+          status={batteryError ? "error" : "in-progress"}
+          additionalInfo={
+            batteryError ? "Vehicle battery is not connected" : undefined
+          }
+        />
         <Button onClick={handleLogout}>Logout</Button>
       </div>
     </>
