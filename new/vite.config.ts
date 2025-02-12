@@ -14,10 +14,10 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
       },
-      '/logout': {
-        target: car_ip,
+      '/redirect_login': {
+       target: car_ip,
         changeOrigin: true,
-        secure: false,
+       secure: false,
       },
       '/api': {
         target: car_ip,
