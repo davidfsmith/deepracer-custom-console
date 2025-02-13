@@ -7,6 +7,8 @@ import Box from "@cloudscape-design/components/box";
 import SpaceBetween from "@cloudscape-design/components/space-between";
 import axios from 'axios';
 import { Joystick } from 'react-joystick-component';
+import Container from "@cloudscape-design/components/container";
+import KeyValuePairs from "@cloudscape-design/components/key-value-pairs";
 
 const HomePage = () => {
   const [showCameraFeed, setShowCameraFeed] = useState(false);
@@ -22,7 +24,7 @@ const HomePage = () => {
   const [isModelLoading, setIsModelLoading] = useState(false);
   const [progressStatus, setProgressStatus] = useState<'in-progress' | 'success'>('in-progress');
   const [progressValue, setProgressValue] = useState<number>(0)
-  const [throttle, setThrottle] = useState(50);
+  const [throttle, setThrottle] = useState(30);
   let currentProgress = 0;
   const lastJoystickMoveTime = useRef<number>(0);
 
@@ -217,33 +219,87 @@ const HomePage = () => {
           <TextContent>
             <h1>Control Vehicle</h1>
             <h2>Sensor</h2>
-            <div style={{ display: 'flex', alignItems: 'right', justifyContent: 'space-between' }}>
-            <div
-              style={{
-                width: "482px",
-                height: "362px",
-                border: "1px solid #ccc",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                backgroundColor: "#f0f0f0",
-                overflow: "hidden",
-              }}
+            <div style={{ 
+              display: 'flex', 
+              flexWrap: 'wrap',
+              gap: '20px',
+              alignItems: 'flex-start',
+              justifyContent: 'left'
+            }}>
+
+            <Container
+              header={<h2>Camera Feed</h2>}
             >
-              {showCameraFeed ? (
-                <iframe
-                  src={cameraFeedSrc}
-                  width="482"
-                  height="362"
-                  frameBorder="0"
-                  allowFullScreen={true}
-                  title="Video Feed"
-                  style={{ border: "none" }}
-                ></iframe>
-              ) : (
-                <p>Camera feed is off</p>
-              )}
-            </div>
+              <SpaceBetween size="s">
+                <div
+                  style={{
+                    width: "482px",
+                    height: "362px",
+                    border: "1px solid #ccc",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: "#f0f0f0",
+                    overflow: "hidden",
+                  }}
+                >
+                  {showCameraFeed ? (
+                    <iframe
+                      src={cameraFeedSrc}
+                      width="482"
+                      height="362"
+                      frameBorder="0"
+                      allowFullScreen={true}
+                      title="Video Feed"
+                      style={{ border: "none" }}
+                    ></iframe>
+                  ) : (
+                    <p>Camera feed is off</p>
+                  )}
+                </div>
+                <Toggle
+                  onChange={toggleCameraFeed}
+                  checked={showCameraFeed}
+                >
+                  {showCameraFeed ? "Turn Off Camera" : "Turn On Camera"}
+                </Toggle>
+                <KeyValuePairs
+                          columns={3}
+                          items={[
+                            { label: "Mono Camera", value: (<RadioGroup
+                              onChange={handleCameraFeedTypeChange}
+                              value={cameraFeedType}
+                              items={[
+                                {
+                                  value: "mono",
+                                  label: `${cameraStatusText}`,
+                                  disabled: sensorStatus.camera_status === "not_connected",
+                                }
+                              ]}/>) },
+                            { label: "Stereo Camera", value: (<RadioGroup
+                              onChange={handleCameraFeedTypeChange}
+                              value={cameraFeedType}
+                              items={[
+                                {
+                                  value: "stereo",
+                                  label: `${stereoStatusText}`,
+                                  disabled: sensorStatus.stereo_status === "not_connected",
+                                }
+                              ]}/>) },
+                            { label: "LiDAR", value: (<RadioGroup
+                              onChange={handleCameraFeedTypeChange}
+                              value={cameraFeedType}
+                              items={[
+                                {
+                                  value: "lidar",
+                                  label: `${lidarStatusText}`,
+                                  disabled: sensorStatus.lidar_status === "not_connected",
+                                }
+                              ]}/>) }
+                          ]}
+                        />
+              </SpaceBetween>
+            </Container>
             <Tabs 
             onChange={({ detail }) => handleTabChange(detail.activeTabId)}
             tabs={[
@@ -290,14 +346,30 @@ const HomePage = () => {
                   />
                 )}
                 <div style={{ display: 'flex', gap: '10px' }}>
-                  <Button variant="primary" onClick={handleStart}>Start vehicle</Button>
-                  <Button variant="primary" onClick={handleStop}>Stop vehicle</Button>
+                  <Button variant="primary" fullWidth onClick={handleStart}>Start vehicle</Button>
+                  <Button variant="primary" fullWidth onClick={handleStop}>Stop vehicle</Button>
                 </div>
                 <h2>Speed</h2>
                 <p>Adjust maximum speed {throttle}%</p>
                 <div style={{ display: 'flex', gap: '10px' }}>
-                <Button variant="primary" onClick={() => handleThrottle('down')} iconName="angle-down">-</Button>
-                <Button variant="primary" onClick={() => handleThrottle('up')} iconName="angle-up">+</Button>
+                <Button 
+                  variant="primary" 
+                  onClick={() => handleThrottle('down')} 
+                  iconName="angle-down"
+                  data-size="large-button"
+                  fullWidth
+                >
+                  -
+                </Button>
+                <Button 
+                  variant="primary" 
+                  onClick={() => handleThrottle('up')} 
+                  iconName="angle-up"
+                  data-size="large-button"
+                  fullWidth
+                >
+                  +
+                </Button>
                 </div>
                 </div>
               },
@@ -308,19 +380,42 @@ const HomePage = () => {
                 <div>
                 <h2>Drive</h2>
                 <p>Drive the vehicle manually using the joystick</p>
-                <Joystick
-                  size={100}
-                  baseColor="gray"
-                  stickColor="black"
-                  start={handleStart}
-                  move={handleJoystickMove}
-                  stop={handleStop}
-                />
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  padding: '10px'
+                }}>
+                  <Joystick
+                    size={100}
+                    baseColor="gray"
+                    stickColor="black"
+                    start={handleStart}
+                    move={handleJoystickMove}
+                    stop={handleStop}
+                  />
+                </div>
                 <h2>Speed</h2>
                 <p>Adjust maximum speed {throttle}%</p>
                 <div style={{ display: 'flex', gap: '10px' }}>
-                <Button variant="primary" onClick={() => handleThrottle('down')} iconName="angle-down">-</Button>
-                <Button variant="primary" onClick={() => handleThrottle('up')} iconName="angle-up">+</Button>
+                <Button 
+                  variant="primary" 
+                  onClick={() => handleThrottle('down')} 
+                  iconName="angle-down"
+                  data-size="large-button"
+                  fullWidth
+                >
+                  -
+                </Button>
+                <Button 
+                  variant="primary" 
+                  onClick={() => handleThrottle('up')} 
+                  iconName="angle-up"
+                  data-size="large-button"
+                  fullWidth
+                >
+                  +
+                </Button>
                 </div>
                 </div>
               }
@@ -328,32 +423,6 @@ const HomePage = () => {
             variant="container"
           />
             </div>
-            <Toggle
-              onChange={toggleCameraFeed}
-              checked={showCameraFeed}
-            >
-              {showCameraFeed ? "Turn Off Camera" : "Turn On Camera"}
-            </Toggle>            <RadioGroup
-            onChange={handleCameraFeedTypeChange}
-            value={cameraFeedType}
-            items={[
-              {
-                value: "mono",
-                label: `Mono Camera ${cameraStatusText}`,
-                disabled: sensorStatus.camera_status === "not_connected",
-              },
-              {
-                value: "stereo",
-                label: `Stereo Camera ${stereoStatusText}`,
-                disabled: sensorStatus.stereo_status === "not_connected",
-              },
-              {
-                value: "lidar",
-                label: `LiDAR ${lidarStatusText}`,
-                disabled: sensorStatus.lidar_status === "not_connected",
-              },
-            ]}
-            />
           </TextContent>
         </div>
       }
