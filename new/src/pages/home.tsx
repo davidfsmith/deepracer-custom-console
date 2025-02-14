@@ -230,7 +230,7 @@ const HomePage = () => {
             <Container
               header={<h2>Camera Feed</h2>}
             >
-              <SpaceBetween size="s">
+              <SpaceBetween size="l">
                 <div
                   style={{
                     width: "482px",
@@ -346,8 +346,8 @@ const HomePage = () => {
                   />
                 )}
                 <div style={{ display: 'flex', gap: '10px' }}>
-                  <Button variant="primary" fullWidth onClick={handleStart}>Start vehicle</Button>
-                  <Button variant="primary" fullWidth onClick={handleStop}>Stop vehicle</Button>
+                  <Button variant="primary" fullWidth  data-size="large-button" onClick={handleStart}>Start vehicle</Button>
+                  <Button variant="primary" fullWidth data-size="large-button" onClick={handleStop}>Stop vehicle</Button>
                 </div>
                 <h2>Speed</h2>
                 <p>Adjust maximum speed {throttle}%</p>
