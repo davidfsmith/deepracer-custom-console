@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { TextContent, Toggle, RadioGroup, Modal, Button, ProgressBar } from "@cloudscape-design/components";
+import { TextContent, Toggle, Modal, Button, ProgressBar } from "@cloudscape-design/components";
 import BaseAppLayout from "../components/base-app-layout";
 import Tabs from "@cloudscape-design/components/tabs";
 import Select from "@cloudscape-design/components/select";
@@ -25,6 +25,7 @@ const HomePage = () => {
   const [progressStatus, setProgressStatus] = useState<'in-progress' | 'success'>('in-progress');
   const [progressValue, setProgressValue] = useState<number>(0)
   const [throttle, setThrottle] = useState(30);
+  const [isModelLoaded, setIsModelLoaded] = useState(false);
   let currentProgress = 0;
   const lastJoystickMoveTime = useRef<number>(0);
 
@@ -81,10 +82,6 @@ const HomePage = () => {
 
   const toggleCameraFeed = () => {
     setShowCameraFeed(prevState => !prevState);
-  };
-
-  const handleCameraFeedTypeChange = ({ detail }: { detail: any }) => {
-    setCameraFeedType(detail.value);
   };
 
   const handleModelSelect = ({ detail }: { detail: any }) => {
@@ -146,6 +143,7 @@ const HomePage = () => {
             console.log('Model API response:', modelResponse.data);
             setIsModalVisible(false);
             setIsModelLoading(true);
+            setIsModelLoaded(false);
             pollModelLoadingStatus();
         } else {
             console.error('No model selected');
@@ -163,6 +161,7 @@ const HomePage = () => {
         if (response.data.isModelLoading === 'loaded' && response.data.success) {
             setProgressStatus('success');
             setIsModelLoading(false);
+            setIsModelLoaded(true);
         } else {
             if (currentProgress<90) {
               currentProgress+=10;
@@ -194,6 +193,10 @@ const HomePage = () => {
     } catch (error) {
       console.error('Error calling API:', error);
     }
+  };
+
+  const handleToggleChange = (sensorType: string) => {
+    setCameraFeedType(sensorType);
   };
 
   const cameraStatusText = sensorStatus.camera_status === 'connected' ? '(Connected)' : '(Not Connected)';
@@ -257,45 +260,36 @@ const HomePage = () => {
                     <p>Camera feed is off</p>
                   )}
                 </div>
-                <Toggle
-                  onChange={toggleCameraFeed}
-                  checked={showCameraFeed}
-                >
-                  {showCameraFeed ? "Turn Off Camera" : "Turn On Camera"}
-                </Toggle>
                 <KeyValuePairs
                           columns={3}
                           items={[
-                            { label: "Mono Camera", value: (<RadioGroup
-                              onChange={handleCameraFeedTypeChange}
-                              value={cameraFeedType}
-                              items={[
-                                {
-                                  value: "mono",
-                                  label: `${cameraStatusText}`,
-                                  disabled: sensorStatus.camera_status === "not_connected",
-                                }
-                              ]}/>) },
-                            { label: "Stereo Camera", value: (<RadioGroup
-                              onChange={handleCameraFeedTypeChange}
-                              value={cameraFeedType}
-                              items={[
-                                {
-                                  value: "stereo",
-                                  label: `${stereoStatusText}`,
-                                  disabled: sensorStatus.stereo_status === "not_connected",
-                                }
-                              ]}/>) },
-                            { label: "LiDAR", value: (<RadioGroup
-                              onChange={handleCameraFeedTypeChange}
-                              value={cameraFeedType}
-                              items={[
-                                {
-                                  value: "lidar",
-                                  label: `${lidarStatusText}`,
-                                  disabled: sensorStatus.lidar_status === "not_connected",
-                                }
-                              ]}/>) }
+                            { label: "Mono Camera", value: (
+                              <Toggle
+                                onChange={() => { handleToggleChange('mono'); toggleCameraFeed(); }}
+                                checked={cameraFeedType === 'mono' && showCameraFeed}
+                                disabled={sensorStatus.camera_status === "not_connected"}
+                              >
+                                {cameraStatusText}
+                              </Toggle>
+                            ) },
+                            { label: "Stereo Camera", value: (
+                              <Toggle
+                                onChange={() => { handleToggleChange('stereo'); toggleCameraFeed(); }}
+                                checked={cameraFeedType === 'stereo' && showCameraFeed}
+                                disabled={sensorStatus.stereo_status === "not_connected"}
+                              >
+                                {stereoStatusText}
+                              </Toggle>
+                            ) },
+                            { label: "LiDAR", value: (
+                              <Toggle
+                                onChange={() => { handleToggleChange('lidar'); toggleCameraFeed(); }}
+                                checked={cameraFeedType === 'lidar' && showCameraFeed}
+                                disabled={sensorStatus.lidar_status === "not_connected"}
+                              >
+                                {lidarStatusText}
+                              </Toggle>
+                            ) }
                           ]}
                         />
               </SpaceBetween>
@@ -346,8 +340,24 @@ const HomePage = () => {
                   />
                 )}
                 <div style={{ display: 'flex', gap: '10px' }}>
-                  <Button variant="primary" fullWidth  data-size="large-button" onClick={handleStart}>Start vehicle</Button>
-                  <Button variant="primary" fullWidth data-size="large-button" onClick={handleStop}>Stop vehicle</Button>
+                  <Button 
+                    variant="primary" 
+                    fullWidth 
+                    data-size="large-button-start" 
+                    onClick={handleStart} 
+                    disabled={!isModelLoaded} 
+                  >
+                    Start vehicle
+                  </Button>
+                  <Button 
+                    variant="primary" 
+                    fullWidth 
+                    data-size="large-button-stop" 
+                    onClick={handleStop} 
+                    disabled={!isModelLoaded} 
+                  >
+                    Stop vehicle
+                  </Button>
                 </div>
                 <h2>Speed</h2>
                 <p>Adjust maximum speed {throttle}%</p>
@@ -355,18 +365,18 @@ const HomePage = () => {
                 <Button 
                   variant="primary" 
                   onClick={() => handleThrottle('down')} 
-                  iconName="angle-down"
                   data-size="large-button"
                   fullWidth
+                  disabled={!isModelLoaded}
                 >
                   -
                 </Button>
                 <Button 
                   variant="primary" 
                   onClick={() => handleThrottle('up')} 
-                  iconName="angle-up"
                   data-size="large-button"
                   fullWidth
+                  disabled={!isModelLoaded}
                 >
                   +
                 </Button>
@@ -401,7 +411,6 @@ const HomePage = () => {
                 <Button 
                   variant="primary" 
                   onClick={() => handleThrottle('down')} 
-                  iconName="angle-down"
                   data-size="large-button"
                   fullWidth
                 >
@@ -410,7 +419,6 @@ const HomePage = () => {
                 <Button 
                   variant="primary" 
                   onClick={() => handleThrottle('up')} 
-                  iconName="angle-up"
                   data-size="large-button"
                   fullWidth
                 >
