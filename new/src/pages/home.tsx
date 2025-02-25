@@ -26,10 +26,34 @@ const HomePage = () => {
   const [isModelLoaded, setIsModelLoaded] = useState(false);
   const lastJoystickMoveTime = useRef<number>(0);
 
+  const checkInitialModelStatus = async () => {
+    try {
+      const response = await axios.get('api/isModelLoading');
+      if (response.data.isModelLoading === 'loaded') {
+        setIsModelLoaded(true);
+        const selectedModelName = localStorage.getItem('selectedModelName');
+        if (selectedModelName) {
+          setSelectedModel({ value: selectedModelName });
+        }
+      }
+    } catch (error) {
+      console.error('Error checking initial model status:', error);
+    }
+  };
+
   useEffect(() => {
-    fetchSensorStatus();
-    fetchModels();
-    setDriveMode('auto');
+    const initialize = async () => {
+      await fetchSensorStatus();
+      await fetchModels();
+      await checkInitialModelStatus();
+      setDriveMode('auto');
+    };
+    
+    initialize();
+
+    return () => {
+      handleStop();
+    };
   }, []);
 
   const setDriveMode = async (mode: 'auto' | 'manual') => {
@@ -84,6 +108,7 @@ const HomePage = () => {
   const handleModelSelect = ({ detail }: { detail: any }) => {
     setSelectedModel(detail.selectedOption);
     setIsModalVisible(true);
+    localStorage.setItem('selectedModelName', detail.selectedOption.value);
   };
 
   const handleCancel = () => {
