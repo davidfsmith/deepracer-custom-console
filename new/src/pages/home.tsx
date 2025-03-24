@@ -1,14 +1,22 @@
-import { useEffect, useState, useRef } from 'react';
-import { TextContent, Toggle, Modal, Button, Flashbar, FlashbarProps } from "@cloudscape-design/components";
+import {
+  Box,
+  Button,
+  ExpandableSection,
+  FlashbarProps,
+  Grid,
+  Header,
+  KeyValuePairs,
+  Modal,
+  ProgressBar,
+  Select,
+  SpaceBetween,
+  Tabs,
+  Toggle,
+} from "@cloudscape-design/components";
+import axios from "axios";
+import { useEffect, useRef, useState, useLayoutEffect } from "react";
+import { Joystick } from "react-joystick-component";
 import BaseAppLayout from "../components/base-app-layout";
-import Tabs from "@cloudscape-design/components/tabs";
-import Select from "@cloudscape-design/components/select";
-import Box from "@cloudscape-design/components/box";
-import SpaceBetween from "@cloudscape-design/components/space-between";
-import axios from 'axios';
-import { Joystick } from 'react-joystick-component';
-import Container from "@cloudscape-design/components/container";
-import KeyValuePairs from "@cloudscape-design/components/key-value-pairs";
 
 const HomePage = () => {
   const [showCameraFeed, setShowCameraFeed] = useState(false);
@@ -24,20 +32,52 @@ const HomePage = () => {
   const [flashbarItems, setFlashbarItems] = useState<FlashbarProps.MessageDefinition[]>([]);
   const [throttle, setThrottle] = useState(30);
   const [isModelLoaded, setIsModelLoaded] = useState(false);
+  const [isInferenceRunning, setIsInferenceRunning] = useState(false);
   const lastJoystickMoveTime = useRef<number>(0);
+
+  // Add state for tracking scrollbars
+  const [defaultExpandCameraSection, setDefaultExpandCameraSection] = useState(true);
+  const divLayoutRef = useRef<HTMLDivElement | null>(null);
+  const [expandedCameraSection, setExpandedCameraSection] = useState(true);
+
+  // Check for scrollbars after render and on resize
+  useLayoutEffect(() => {
+    const checkForScrollbars = () => {
+      if (divLayoutRef.current) {
+        // Auto-collapse camera section on small screens
+        if (divLayoutRef.current.scrollWidth < 902) {
+          // 902px is the 's' breakpoint
+          setDefaultExpandCameraSection(false);
+          if (expandedCameraSection && defaultExpandCameraSection) {
+            setExpandedCameraSection(false);
+          }
+        } else {
+          setDefaultExpandCameraSection(true);
+          if (!expandedCameraSection && !defaultExpandCameraSection) {
+            setExpandedCameraSection(true);
+          }
+        }
+      }
+    };
+
+    checkForScrollbars();
+    window.addEventListener("resize", checkForScrollbars);
+
+    return () => window.removeEventListener("resize", checkForScrollbars);
+  }, [expandedCameraSection, defaultExpandCameraSection]);
 
   const checkInitialModelStatus = async () => {
     try {
-      const response = await axios.get('api/isModelLoading');
-      if (response.data.isModelLoading === 'loaded') {
+      const response = await axios.get("api/isModelLoading");
+      if (response.data.isModelLoading === "loaded") {
         setIsModelLoaded(true);
-        const selectedModelName = localStorage.getItem('selectedModelName');
+        const selectedModelName = localStorage.getItem("selectedModelName");
         if (selectedModelName) {
           setSelectedModel({ value: selectedModelName });
         }
       }
     } catch (error) {
-      console.error('Error checking initial model status:', error);
+      console.error("Error checking initial model status:", error);
     }
   };
 
@@ -46,9 +86,9 @@ const HomePage = () => {
       await fetchSensorStatus();
       await fetchModels();
       await checkInitialModelStatus();
-      setDriveMode('auto');
+      setDriveMode("auto");
     };
-    
+
     initialize();
 
     return () => {
@@ -56,9 +96,12 @@ const HomePage = () => {
     };
   }, []);
 
-  const setDriveMode = async (mode: 'auto' | 'manual') => {
+  const setDriveMode = async (mode: "auto" | "manual") => {
     try {
-      const response = await axios.post('/api/drive_mode', { drive_mode: mode });
+      setIsInferenceRunning(false);
+      const response = await axios.post("/api/drive_mode", {
+        drive_mode: mode,
+      });
       console.log(`Drive mode set to ${mode}:`, response.data);
     } catch (error) {
       console.error(`Error setting drive mode to ${mode}:`, error);
@@ -66,10 +109,10 @@ const HomePage = () => {
   };
 
   const handleTabChange = (selectedTab: string) => {
-    if (selectedTab === 'autonomous') {
-      setDriveMode('auto');
-    } else if (selectedTab === 'manual') {
-      setDriveMode('manual');
+    if (selectedTab === "autonomous") {
+      setDriveMode("auto");
+    } else if (selectedTab === "manual") {
+      setDriveMode("manual");
     }
   };
 
@@ -87,28 +130,30 @@ const HomePage = () => {
 
   const fetchModels = async () => {
     try {
-      const response = await axios.get('/api/models');
+      const response = await axios.get("/api/models");
       const models = response.data.models;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const options = models.map((model: any) => ({
         label: model.model_folder_name,
         value: model.model_folder_name,
-        description: model.model_sensors.join(', '),
-        disabled: model.is_select_disabled
+        description: model.model_sensors.join(", "),
+        disabled: model.is_select_disabled,
       }));
       setModelOptions(options);
     } catch (error) {
-      console.error('Error fetching models:', error);
+      console.error("Error fetching models:", error);
     }
   };
 
   const toggleCameraFeed = () => {
-    setShowCameraFeed(prevState => !prevState);
+    setShowCameraFeed((prevState) => !prevState);
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleModelSelect = ({ detail }: { detail: any }) => {
     setSelectedModel(detail.selectedOption);
     setIsModalVisible(true);
-    localStorage.setItem('selectedModelName', detail.selectedOption.value);
+    localStorage.setItem("selectedModelName", detail.selectedOption.value);
   };
 
   const handleCancel = () => {
@@ -117,38 +162,48 @@ const HomePage = () => {
 
   const handleStart = async () => {
     try {
-      const response = await axios.post('/api/start_stop', { start_stop: 'start' });
-      console.log('Vehicle started:', response.data);
+      setIsInferenceRunning(true);
+      const response = await axios.post("/api/start_stop", {
+        start_stop: "start",
+      });
+      console.log("Vehicle started:", response.data);
     } catch (error) {
-      console.error('Error starting vehicle:', error);
+      console.error("Error starting vehicle:", error);
     }
   };
 
   const handleStop = async () => {
     try {
-      const response = await axios.post('/api/start_stop', { start_stop: 'stop' });
-      console.log('Vehicle stopped:', response.data);
+      setIsInferenceRunning(false);
+      const response = await axios.post("/api/start_stop", {
+        start_stop: "stop",
+      });
+      console.log("Vehicle stopped:", response.data);
     } catch (error) {
-      console.error('Error stopping vehicle:', error);
+      console.error("Error stopping vehicle:", error);
     }
   };
 
-  const handleThrottle = (direction: 'up' | 'down') => {
-    setThrottle(prevThrottle => {
-      if (direction === 'up') {
+  const handleThrottle = (direction: "up" | "down") => {
+    setThrottle((prevThrottle) => {
+      if (direction === "up") {
         try {
-          const response = axios.post('/api/max_nav_throttle', { throttle: prevThrottle + 1 });
-          console.log('Vehicle stopped:', response);
+          const response = axios.post("/api/max_nav_throttle", {
+            throttle: prevThrottle + 1,
+          });
+          console.log("Vehicle stopped:", response);
         } catch (error) {
-          console.error('Error stopping vehicle:', error);
+          console.error("Error stopping vehicle:", error);
         }
         return prevThrottle + 1;
-      } else if (direction === 'down') {
+      } else if (direction === "down") {
         try {
-          const response = axios.post('/api/max_nav_throttle', { throttle: prevThrottle - 1 });
-          console.log('Vehicle stopped:', response);
+          const response = axios.post("/api/max_nav_throttle", {
+            throttle: prevThrottle - 1,
+          });
+          console.log("Vehicle stopped:", response);
         } catch (error) {
-          console.error('Error stopping vehicle:', error);
+          console.error("Error stopping vehicle:", error);
         }
         return prevThrottle - 1;
       }
@@ -158,71 +213,80 @@ const HomePage = () => {
 
   const handleLoadModelClick = async () => {
     try {
-        handleStop();
+      handleStop();
 
-        if (selectedModel) {
-            const modelResponse = await axios.put(`/api/models/${selectedModel.value}/model`);
-            console.log('Model API response:', modelResponse.data);
-            setIsModalVisible(false);
-            setIsModelLoaded(false);
-            showLoadingFlashbar();
-            pollModelLoadingStatus();
-        } else {
-            console.error('No model selected');
-        }
+      if (selectedModel) {
+        const modelResponse = await axios.put(`/api/models/${selectedModel.value}/model`);
+        console.log("Model API response:", modelResponse.data);
+        setIsModalVisible(false);
+        setIsModelLoaded(false);
+        showLoadingFlashbar();
+        pollModelLoadingStatus();
+      } else {
+        console.error("No model selected");
+      }
     } catch (error) {
-        console.error('Error calling API:', error);
+      console.error("Error calling API:", error);
     }
   };
 
   const pollModelLoadingStatus = async () => {
     try {
-        const response = await axios.get('api/isModelLoading');
-        if (response.data.isModelLoading === 'loaded' && response.data.success) {
-            showSuccessFlashbar();
-            setIsModelLoaded(true);
-        } else {
-            setTimeout(pollModelLoadingStatus, 1000);
-        }
-    } catch (error) {
-        console.error('Error polling model loading status:', error);
+      const response = await axios.get("api/isModelLoading");
+      if (response.data.isModelLoading === "loaded" && response.data.success) {
+        showSuccessFlashbar();
+        setIsModelLoaded(true);
+      } else {
         setTimeout(pollModelLoadingStatus, 1000);
+      }
+    } catch (error) {
+      console.error("Error polling model loading status:", error);
+      setTimeout(pollModelLoadingStatus, 1000);
     }
   };
 
   const showLoadingFlashbar = () => {
-    setFlashbarItems([{
-      type: 'in-progress',
-      content: 'Model Loading...',
-      dismissible: false,
-    }]);
+    setFlashbarItems([
+      {
+        type: "in-progress",
+        loading: true,
+        content: "Model loading...",
+        dismissible: false,
+      },
+    ]);
   };
 
   const showSuccessFlashbar = () => {
-    setFlashbarItems([{
-      type: 'success',
-      content: 'Model loaded successfully',
-      dismissible: true,
-      onDismiss: () => setFlashbarItems([]),
-    }]);
+    setFlashbarItems([
+      {
+        type: "success",
+        content: "Model loaded successfully",
+        dismissible: true,
+        onDismiss: () => setFlashbarItems([]),
+      },
+    ]);
     setTimeout(() => setFlashbarItems([]), 5000);
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleJoystickMove = (event: any) => {
     const now = Date.now();
     //prevent joystick spamming the API and causing lag
     if (now - lastJoystickMoveTime.current < 200) return;
 
     lastJoystickMoveTime.current = now;
-    const { x, y } = event;
-    const steering = x;
-    const throttle = y;
-    console.log(`Joystick moved to x: ${x}, y: ${y}`);
+    const steering = event.x;
+    const throttle = event.y;
+    console.log(`Joystick moved to x: ${steering}, y: ${throttle}`);
     try {
-      const modelResponse = axios.put(`/api/manual_drive`, { angle: steering, throttle: throttle, max_speed: 0.5 });
-      console.log('Model API response:', modelResponse);
+      const modelResponse = axios.put(`/api/manual_drive`, {
+        angle: steering,
+        throttle: throttle,
+        max_speed: 0.5,
+      });
+      console.log("Model API response:", modelResponse);
     } catch (error) {
-      console.error('Error calling API:', error);
+      console.error("Error calling API:", error);
     }
   };
 
@@ -230,232 +294,315 @@ const HomePage = () => {
     setCameraFeedType(sensorType);
   };
 
-  const cameraStatusText = sensorStatus.camera_status === 'connected' ? '(Connected)' : '(Not Connected)';
-  const stereoStatusText = sensorStatus.stereo_status === 'connected' ? '(Connected)' : '(Not Connected)';
-  const lidarStatusText = sensorStatus.lidar_status === 'connected' ? '(Connected)' : '(Not Connected)';
+  const cameraStatusText =
+    sensorStatus.camera_status === "connected" ? "(Connected)" : "(Not Connected)";
+  const stereoStatusText =
+    sensorStatus.stereo_status === "connected" ? "(Connected)" : "(Not Connected)";
+  const lidarStatusText =
+    sensorStatus.lidar_status === "connected" ? "(Connected)" : "(Not Connected)";
 
   let cameraFeedSrc;
   switch (cameraFeedType) {
     case "stereo":
-      cameraFeedSrc = "route?topic=/object_detection_pkg/detection_display&width=480&height=360";
+      cameraFeedSrc = "route?topic=/object_detection_pkg/detection_display&width=480&height=360&qos_profile=sensor_data";
       break;
     case "lidar":
-      cameraFeedSrc = "route?topic=/sensor_fusion_pkg/overlay_msg&width=480&height=360";
+      cameraFeedSrc =
+        "route?topic=/sensor_fusion_pkg/overlay_msg&width=480&height=360&qos_profile=sensor_data";
       break;
     default:
-      cameraFeedSrc = "route?topic=/camera_pkg/display_mjpeg&width=480&height=360";
+      cameraFeedSrc =
+        "route?topic=/camera_pkg/display_mjpeg&width=480&height=360&qos_profile=sensor_data";
   }
+  const cameraImgRef = useRef<HTMLImageElement | null>(null);
+
+  useEffect(() => {
+    if (showCameraFeed && cameraImgRef.current) {
+      cameraImgRef.current.src = cameraFeedSrc;
+    } else if (!showCameraFeed && cameraImgRef.current) {
+      cameraImgRef.current.src = "";
+    }
+  }, [showCameraFeed, cameraFeedSrc]);
 
   return (
     <BaseAppLayout
+      pageNotifications={flashbarItems}
       content={
-        <div>
-          <Flashbar items={flashbarItems} />
-          <TextContent>
-            <h1>Control Vehicle</h1>
-            <h2>Sensor</h2>
-            <div style={{ 
-              display: 'flex', 
-              flexWrap: 'wrap',
-              gap: '20px',
-              alignItems: 'flex-start',
-              justifyContent: 'left'
-            }}>
-
-            <Container
-              header={<h2>Camera Feed</h2>}
+        <div ref={divLayoutRef}>
+          <SpaceBetween size="l">
+            <Header variant="h1">Control Vehicle</Header>
+            <Grid
+              gridDefinition={[
+                { colspan: { default: 12, m: 7, s: 7 } },
+                { colspan: { default: 12, m: 5, s: 5 } },
+              ]}
             >
-              <SpaceBetween size="l">
-                <div
-                  style={{
-                    width: "482px",
-                    height: "362px",
-                    border: "1px solid #ccc",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    backgroundColor: "#f0f0f0",
-                    overflow: "hidden",
-                  }}
-                >
-                  {showCameraFeed ? (
-                    <iframe
-                      src={cameraFeedSrc}
+              <ExpandableSection
+                variant="container"
+                headerText="Camera Feed"
+                headingTagOverride="h2"
+                expanded={expandedCameraSection}
+                defaultExpanded={defaultExpandCameraSection}
+                onChange={({ detail }) => setExpandedCameraSection(detail.expanded)}
+              >
+                <SpaceBetween size="s">
+                  <div
+                    style={{
+                      border: "1px solid #d5dbdb",
+                      backgroundColor: "#f2f3f3",
+                      overflow: "hidden",
+                      borderRadius: "4px",
+                      padding: showCameraFeed ? "0" : "0",
+                      width: "482px",
+                      height: "362px",
+                    }}
+                  >
+                    <img
+                      ref={cameraImgRef}
                       width="482"
                       height="362"
-                      frameBorder="0"
-                      allowFullScreen={true}
-                      title="Video Feed"
-                      style={{ border: "none" }}
-                    ></iframe>
-                  ) : (
-                    <p>Camera feed is off</p>
-                  )}
-                </div>
-                <KeyValuePairs
-                          columns={3}
-                          items={[
-                            { label: "Mono Camera", value: (
-                              <Toggle
-                                onChange={() => { handleToggleChange('mono'); toggleCameraFeed(); }}
-                                checked={cameraFeedType === 'mono' && showCameraFeed}
-                                disabled={sensorStatus.camera_status === "not_connected"}
-                              >
-                                {cameraStatusText}
-                              </Toggle>
-                            ) },
-                            { label: "Stereo Camera", value: (
-                              <Toggle
-                                onChange={() => { handleToggleChange('stereo'); toggleCameraFeed(); }}
-                                checked={cameraFeedType === 'stereo' && showCameraFeed}
-                                disabled={sensorStatus.stereo_status === "not_connected"}
-                              >
-                                {stereoStatusText}
-                              </Toggle>
-                            ) },
-                            { label: "LiDAR", value: (
-                              <Toggle
-                                onChange={() => { handleToggleChange('lidar'); toggleCameraFeed(); }}
-                                checked={cameraFeedType === 'lidar' && showCameraFeed}
-                                disabled={sensorStatus.lidar_status === "not_connected"}
-                              >
-                                {lidarStatusText}
-                              </Toggle>
-                            ) }
-                          ]}
-                        />
-              </SpaceBetween>
-            </Container>
-            <Tabs 
-            onChange={({ detail }) => handleTabChange(detail.activeTabId)}
-            tabs={[
-              {
-                label: "Autonomous Mode",
-                id: "autonomous",
-                content: 
-                <div>
-                <h2>Models</h2>
-                <p>Choose a model to autonomously drive</p>
-                <Select
-                  options={modelOptions}
-                  selectedOption={selectedModel}
-                  onChange={handleModelSelect}
-                  placeholder="Select a model"
-                />
-                <p>Sensor and vehicle configuration must match</p>
-                {isModalVisible && (
-                  <Modal
-                    onDismiss={handleCancel}
-                    visible={isModalVisible}
-                    closeAriaLabel="Close modal"
-                    header="Load Model"
-                    footer={
-                      <Box float="right">
-                      <SpaceBetween direction="horizontal" size="xs">
-                        <Button onClick={handleCancel}>Cancel</Button>
-                        <Button variant="primary" onClick={handleLoadModelClick}>Load Model</Button>
-                      </SpaceBetween>
-                      </Box>
-                    }
-                  >
-                    <TextContent>
-                      <p>Your vehicle will be disabled while the new model is loaded</p>
-                    </TextContent>
-                  </Modal>
-                )}
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  <Button 
-                    variant="primary" 
-                    fullWidth 
-                    data-size="large-button-start" 
-                    onClick={handleStart} 
-                    disabled={!isModelLoaded} 
-                  >
-                    Start vehicle
-                  </Button>
-                  <Button 
-                    variant="primary" 
-                    fullWidth 
-                    data-size="large-button-stop" 
-                    onClick={handleStop} 
-                    disabled={!isModelLoaded} 
-                  >
-                    Stop vehicle
-                  </Button>
-                </div>
-                <h2>Speed</h2>
-                <p>Adjust maximum speed {throttle}%</p>
-                <div style={{ display: 'flex', gap: '10px' }}>
-                <Button 
-                  variant="primary" 
-                  onClick={() => handleThrottle('down')} 
-                  data-size="large-button"
-                  fullWidth
-                  disabled={!isModelLoaded}
-                >
-                  -
-                </Button>
-                <Button 
-                  variant="primary" 
-                  onClick={() => handleThrottle('up')} 
-                  data-size="large-button"
-                  fullWidth
-                  disabled={!isModelLoaded}
-                >
-                  +
-                </Button>
-                </div>
-                </div>
-              },
-              {
-                label: "Manual Mode",
-                id: "manual",
-                content:
-                <div>
-                <h2>Drive</h2>
-                <p>Drive the vehicle manually using the joystick</p>
-                <div style={{
-                  display: 'flex',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  padding: '10px'
-                }}>
-                  <Joystick
-                    size={100}
-                    baseColor="gray"
-                    stickColor="black"
-                    start={handleStart}
-                    move={handleJoystickMove}
-                    stop={handleStop}
+                      style={{ border: "none", display: showCameraFeed ? "block" : "none" }}
+                    />
+                  </div>
+                  <KeyValuePairs
+                    columns={3}
+                    items={[
+                      {
+                        label: "Mono Camera",
+                        value: (
+                          <Toggle
+                            onChange={() => {
+                              handleToggleChange("mono");
+                              toggleCameraFeed();
+                            }}
+                            checked={cameraFeedType === "mono" && showCameraFeed}
+                            disabled={sensorStatus.camera_status === "not_connected"}
+                          >
+                            {cameraStatusText}
+                          </Toggle>
+                        ),
+                      },
+                      {
+                        label: "Stereo Camera",
+                        value: (
+                          <Toggle
+                            onChange={() => {
+                              handleToggleChange("stereo");
+                              toggleCameraFeed();
+                            }}
+                            checked={cameraFeedType === "stereo" && showCameraFeed}
+                            disabled={sensorStatus.stereo_status === "not_connected"}
+                          >
+                            {stereoStatusText}
+                          </Toggle>
+                        ),
+                      },
+                      {
+                        label: "LiDAR",
+                        value: (
+                          <Toggle
+                            onChange={() => {
+                              handleToggleChange("lidar");
+                              toggleCameraFeed();
+                            }}
+                            checked={cameraFeedType === "lidar" && showCameraFeed}
+                            disabled={sensorStatus.lidar_status === "not_connected"}
+                          >
+                            {lidarStatusText}
+                          </Toggle>
+                        ),
+                      },
+                    ]}
                   />
-                </div>
-                <h2>Speed</h2>
-                <p>Adjust maximum speed {throttle}%</p>
-                <div style={{ display: 'flex', gap: '10px' }}>
-                <Button 
-                  variant="primary" 
-                  onClick={() => handleThrottle('down')} 
-                  data-size="large-button"
-                  fullWidth
-                >
-                  -
-                </Button>
-                <Button 
-                  variant="primary" 
-                  onClick={() => handleThrottle('up')} 
-                  data-size="large-button"
-                  fullWidth
-                >
-                  +
-                </Button>
-                </div>
-                </div>
-              }
-            ]}
-            variant="container"
-          />
-            </div>
-          </TextContent>
+                </SpaceBetween>
+              </ExpandableSection>
+
+              <Tabs
+                onChange={({ detail }) => handleTabChange(detail.activeTabId)}
+                tabs={[
+                  {
+                    label: "Autonomous Mode",
+                    id: "autonomous",
+                    content: (
+                      <>
+                        <SpaceBetween size="m" direction="vertical">
+                          <Header variant="h2">Model</Header>
+                          <SpaceBetween size="xxs" direction="vertical">
+                            <Box color="text-body-secondary">
+                              Choose a model to autonomously drive
+                            </Box>
+                            <Select
+                              options={modelOptions}
+                              selectedOption={selectedModel}
+                              onChange={handleModelSelect}
+                              placeholder="Select a model"
+                              expandToViewport
+                              triggerVariant="option"
+                            />
+                            <Box variant="small" color="text-body-secondary">
+                              Vehicle's sensor configuration must match the model's sensor
+                              configuration to enable autonomous driving.
+                            </Box>
+                          </SpaceBetween>
+                          {isModalVisible && (
+                            <Modal
+                              onDismiss={handleCancel}
+                              visible={isModalVisible}
+                              closeAriaLabel="Close modal"
+                              header="Load Model"
+                              footer={
+                                <Box float="right">
+                                  <SpaceBetween direction="horizontal" size="xs">
+                                    <Button onClick={handleCancel}>Cancel</Button>
+                                    <Button variant="primary" onClick={handleLoadModelClick}>
+                                      Load Model
+                                    </Button>
+                                  </SpaceBetween>
+                                </Box>
+                              }
+                            >
+                              <Box variant="p">
+                                Your vehicle will be disabled while the new model is loaded
+                              </Box>
+                            </Modal>
+                          )}
+                          <Header variant="h2">Control Vehicle</Header>
+                          <SpaceBetween size="l" direction="horizontal">
+                            <Button
+                              variant="primary"
+                              data-testid="start-vehicle"
+                              onClick={handleStart}
+                              disabled={!isModelLoaded || isInferenceRunning}
+                            >
+                              Start vehicle
+                            </Button>
+                            <Button
+                              variant="normal"
+                              data-testid="stop-vehicle"
+                              onClick={handleStop}
+                              disabled={!isModelLoaded || !isInferenceRunning}
+                            >
+                              Stop vehicle
+                            </Button>
+                          </SpaceBetween>
+
+                          <ProgressBar
+                            value={throttle}
+                            additionalInfo="All speeds are multiplied with the factor. If the car does not move, then gradually increase the factor."
+                            label="Adjust speed factor"
+                          />
+                          <SpaceBetween size="l" direction="horizontal">
+                            <Button
+                              variant="normal"
+                              onClick={() => handleThrottle("down")}
+                              data-testid="decrease-speed"
+                              disabled={!isModelLoaded}
+                            >
+                              <svg
+                                width="96"
+                                height="96"
+                                viewBox="0 0 96 96"
+                                fill="none"
+                                xmlns="http://www.w3.org/2000/svg"
+                              >
+                                <path d="M76 52H20v-8h56v8z" fill="currentColor" />
+                              </svg>
+                            </Button>
+                            <Button
+                              variant="primary"
+                              onClick={() => handleThrottle("up")}
+                              data-testid="increase-speed"
+                              disabled={!isModelLoaded}
+                            >
+                              <svg
+                                width="96"
+                                height="96"
+                                viewBox="0 0 96 96"
+                                fill="none"
+                                xmlns="http://www.w3.org/2000/svg"
+                              >
+                                <path
+                                  d="M76 52H52v24h-8V52H20v-8h24V20h8v24h24v8z"
+                                  fill="currentColor"
+                                />
+                              </svg>
+                            </Button>
+                          </SpaceBetween>
+                        </SpaceBetween>
+                      </>
+                    ),
+                  },
+                  {
+                    label: "Manual Mode",
+                    id: "manual",
+                    content: (
+                      <SpaceBetween size="m" direction="vertical">
+                        <Header variant="h2">Drive</Header>
+                        <Box color="text-body-secondary">
+                          Drive the vehicle manually using the joystick
+                        </Box>
+                        <Box textAlign="center" padding={{ top: "m", bottom: "m" }}>
+                          <div style={{ justifyContent: "center", display: "flex" }}>
+                            <Joystick
+                              size={100}
+                              baseColor="#eaeded"
+                              stickColor="#545b64"
+                              start={handleStart}
+                              move={handleJoystickMove}
+                              stop={handleStop}
+                            />
+                          </div>
+                        </Box>
+
+                        <Header variant="h2">Speed</Header>
+                        <ProgressBar
+                          value={throttle}
+                          additionalInfo="All speeds are multiplied with the factor. If the car does not move, then gradually increase the factor."
+                          label="Adjust speed factor"
+                        />
+                        <SpaceBetween size="l" direction="horizontal">
+                          <Button
+                            variant="normal"
+                            onClick={() => handleThrottle("down")}
+                            data-testid="decrease-speed"
+                          >
+                            <svg
+                              width="96"
+                              height="96"
+                              viewBox="0 0 96 96"
+                              fill="none"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path d="M76 52H20v-8h56v8z" fill="currentColor" />
+                            </svg>
+                          </Button>
+                          <Button
+                            variant="primary"
+                            onClick={() => handleThrottle("up")}
+                            data-testid="increase-speed"
+                          >
+                            <svg
+                              width="96"
+                              height="96"
+                              viewBox="0 0 96 96"
+                              fill="none"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="M76 52H52v24h-8V52H20v-8h24V20h8v24h24v8z"
+                                fill="currentColor"
+                              />
+                            </svg>
+                          </Button>
+                        </SpaceBetween>
+                      </SpaceBetween>
+                    ),
+                  },
+                ]}
+                variant="container"
+              />
+            </Grid>
+          </SpaceBetween>
         </div>
       }
     />
