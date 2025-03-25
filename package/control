@@ -1,6 +1,7 @@
 Package: aws-deepracer-community-device-console
 Replaces: aws-deepracer-device-console
 Provides: aws-deepracer-device-console
+Conflicts: aws-deepracer-device-console
 Version: 0.0.0.0
 Section: base
 Priority: optional
