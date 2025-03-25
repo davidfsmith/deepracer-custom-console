@@ -22,7 +22,7 @@ Whether you're a casual racer or a DeepRacer developer, this custom console prov
 
 - Find the latest release - https://github.com/aws-deepracer-community/deepracer-custom-console/releases
 - SSH to your car
-- Run `curl -L -o deepracer-console-new.deb https://github.com/aws-deepracer-community/deepracer-custom-console/releases/download/v2.2.2/aws-deepracer-community-device-console_2.2.2_all.deb`
+- Run `curl -L -o deepracer-console-new.deb https://github.com/aws-deepracer-community/deepracer-custom-console/releases/download/v2.2.2/aws-deepracer-community-device-console_2.2.2.0_all.deb`
 - Run `sudo dpkg -i deepracer-console-new.deb`
 - Open your browser and navigate to the IP address of the car and login using your password
 
