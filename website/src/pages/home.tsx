@@ -551,6 +551,9 @@ const HomePage = () => {
                               </svg>
                             </Button>
                           </SpaceBetween>
+                          <Box variant="small" color="text-body-secondary">
+                              Use -5 / +5 with caution, increased risk of crashing!
+                            </Box>
                           <SpaceBetween size="l" direction="horizontal">
                             <Button
                               variant="normal"
@@ -570,7 +573,7 @@ const HomePage = () => {
                                   y="48" 
                                   fill="currentColor" 
                                   font-size="80" 
-                                  font-family="Arial, sans-serif" 
+                                  font-family="OpenSans" 
                                   font-weight="bold"
                                   text-anchor="middle"
                                   dominant-baseline="central"
@@ -597,7 +600,7 @@ const HomePage = () => {
                                   y="48" 
                                   fill="currentColor" 
                                   font-size="80" 
-                                  font-family="Arial, sans-serif" 
+                                  font-family="OpenSans" 
                                   font-weight="bold"
                                   text-anchor="middle"
                                   dominant-baseline="central"
@@ -671,6 +674,62 @@ const HomePage = () => {
                                 d="M76 52H52v24h-8V52H20v-8h24V20h8v24h24v8z"
                                 fill="currentColor"
                               />
+                            </svg>
+                          </Button>
+                        </SpaceBetween>
+                        <SpaceBetween size="l" direction="horizontal">
+                          <Button
+                            variant="normal"
+                            onClick={() => handleThrottleFive("down")}
+                            data-testid="decrease-speed"
+                            disabled={!isModelLoaded}
+                          >
+                            <svg
+                              width="96"
+                              height="96"
+                              viewBox="0 0 96 96"
+                              fill="none"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <text 
+                                x="48" 
+                                y="48" 
+                                fill="currentColor" 
+                                font-size="80" 
+                                font-family="Arial, sans-serif" 
+                                font-weight="bold"
+                                text-anchor="middle"
+                                dominant-baseline="central"
+                              >
+                                -5
+                              </text>
+                            </svg>
+                          </Button>
+                          <Button
+                            variant="primary"
+                            onClick={() => handleThrottleFive("up")}
+                            data-testid="increase-speed"
+                            disabled={!isModelLoaded}
+                          >
+                            <svg
+                              width="96"
+                              height="96"
+                              viewBox="0 0 96 96"
+                              fill="none"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <text 
+                                x="48" 
+                                y="48" 
+                                fill="currentColor" 
+                                font-size="80" 
+                                font-family="Arial, sans-serif" 
+                                font-weight="bold"
+                                text-anchor="middle"
+                                dominant-baseline="central"
+                              >
+                                +5
+                              </text>
                             </svg>
                           </Button>
                         </SpaceBetween>
