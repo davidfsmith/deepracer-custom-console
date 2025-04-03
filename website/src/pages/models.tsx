@@ -31,6 +31,7 @@ interface State {
   selectedModels: Model[];
   flashMessages: FlashbarProps.MessageDefinition[];
   isDeleteModalVisible: boolean; // Add state for delete modal visibility
+  isUploading: boolean; // Add state for upload progress
 }
 
 class Models extends React.Component<{}, State> {
@@ -39,8 +40,9 @@ class Models extends React.Component<{}, State> {
   state: State = {
     models: [],
     selectedModels: [],
-    flashMessages: [],
-    isDeleteModalVisible: false // Add state for delete modal visibility
+    flashMessages: [], // Initialize flashMessages as an empty array
+    isDeleteModalVisible: false, // Add state for delete modal visibility
+    isUploading: false // Initialize upload progress state
   };
 
   componentDidMount() {
@@ -99,12 +101,17 @@ class Models extends React.Component<{}, State> {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    if (!file.name.endsWith(".tar.gz")) {
-      this.addFlashMessage("Incorrect model format, please select a tar.gz file", "error");
-      return;
-    }
-
     try {
+      // Reset input value to allow uploading same file again
+      if (this.fileInput) {
+        this.fileInput.value = '';
+      }
+
+      if (!file.name.endsWith(".tar.gz")) {
+        this.addFlashMessage("Incorrect model format, please select a tar.gz file", "error");
+        return;
+      }
+
       const modelInstalledResponse = await this.isModelInstalled(file.name);
       if (modelInstalledResponse?.success) {
         this.addFlashMessage(modelInstalledResponse.message ?? "Model already installed", "error");
@@ -142,6 +149,8 @@ class Models extends React.Component<{}, State> {
     } catch (error: any) {
       console.error('Error:', error);
       this.addFlashMessage(error.message ?? "Upload failed", "error");
+      // Reset loading state if error occurs
+      this.setState({ isUploading: false });
     }
   };
 
