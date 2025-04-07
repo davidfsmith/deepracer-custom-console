@@ -1,79 +1,47 @@
 import { AppLayout, AppLayoutProps, Flashbar, FlashbarProps } from "@cloudscape-design/components";
-import axios from "axios";
-import { useEffect, useState } from "react";
 import { useNavigationPanelState } from "../common/hooks/use-navigation-panel-state";
 import NavigationPanel from "./navigation-panel";
+import { useBattery } from "../common/hooks/use-battery";
+import { useModels } from "../common/hooks/use-models";
 
 interface BaseAppLayoutProps extends AppLayoutProps {
-  pageNotifications?: FlashbarProps.MessageDefinition[];
+  additionalNotifications?: FlashbarProps.MessageDefinition[];
+  showBatteryNotifications?: boolean;
+  showModelNotifications?: boolean;
 }
 
 export default function BaseAppLayout(props: BaseAppLayoutProps) {
-  const { pageNotifications: pageNotifications, ...restProps } = props;
+  const { 
+    additionalNotifications = [], 
+    showBatteryNotifications = true,
+    showModelNotifications = true,
+    ...restProps 
+  } = props;
+  
   const [navigationPanelState, setNavigationPanelState] = useNavigationPanelState();
-  const [batteryLevel, setBatteryLevel] = useState<number>(0);
-  const [batteryError, setBatteryError] = useState<boolean>(false);
-  const [batteryWarningDismissed, setBatteryWarningDismissed] = useState(false);
-  const [batteryErrorDismissed, setBatteryErrorDismissed] = useState(false);
-  const [hasInitialReading, setHasInitialReading] = useState(false);
-  const [pageLoadTime] = useState<number>(Date.now());
-  const hasBeenTenSeconds = Date.now() - pageLoadTime >= 10000;
+  
+  // Use the battery context
+  const {
+    batteryLevel,
+    batteryError,
+    hasInitialReading,
+    batteryFlashbarItems
+  } = useBattery();
 
-  useEffect(() => {
-    let isSubscribed = true; // Track if component is mounted
+  // Get model notifications from context
+  const { modelFlashbarItems } = useModels();
 
-    const updateBatteryStatus = async () => {
-      try {
-        const batteryData = await getBatteryStatus();
-        // Only update state if component is still mounted
-        if (isSubscribed && batteryData) {
-          if (batteryData.success) {
-            setHasInitialReading(true);
-            if (batteryData.battery_level === -1) {
-              setBatteryError(true);
-              setBatteryLevel(0);
-              setBatteryWarningDismissed(false);
-              setBatteryErrorDismissed(false);
-            } else {
-              setBatteryError(false);
-              setBatteryLevel((batteryData.battery_level / 10) * 100);
-              setBatteryErrorDismissed(false);
-              if (batteryData.battery_level <= 4) {
-                setBatteryWarningDismissed(false);
-              }
-            }
-          }
-        }
-      } catch (error) {
-        console.error("Error updating battery status:", error);
-        if (isSubscribed) {
-          setBatteryError(true);
-          setBatteryLevel(0);
-          setBatteryWarningDismissed(false);
-          setBatteryErrorDismissed(false);
-        }
-      }
-    };
-
-    const getBatteryStatus = async () => {
-      try {
-        const response = await axios.get("/api/get_battery_level");
-        return response.data;
-      } catch (error) {
-        console.error("Error fetching battery status:", error);
-        return null;
-      }
-    };
-
-    updateBatteryStatus();
-    const interval = setInterval(updateBatteryStatus, 10000);
-
-    // Cleanup function
-    return () => {
-      isSubscribed = false;
-      clearInterval(interval);
-    };
-  }, []);
+  // Collect all notifications
+  const allNotifications: FlashbarProps.MessageDefinition[] = [
+    // Battery notifications
+    ...(showBatteryNotifications ? batteryFlashbarItems : []),
+    
+    // Model notifications
+    ...(showModelNotifications ? modelFlashbarItems : []),
+    
+    // Additional page-specific notifications
+    ...additionalNotifications
+  ];
 
   return (
     <AppLayout
@@ -83,39 +51,7 @@ export default function BaseAppLayout(props: BaseAppLayoutProps) {
       onNavigationChange={({ detail }) => setNavigationPanelState({ collapsed: !detail.open })}
       toolsHide={true}
       notifications={
-        <Flashbar
-          items={[
-            ...((batteryError || (!hasInitialReading && hasBeenTenSeconds)) &&
-            !batteryErrorDismissed
-              ? [
-                  {
-                    type: "error" as FlashbarProps.Type,
-                    content:
-                      !hasInitialReading && hasBeenTenSeconds
-                        ? "Unable to get battery reading"
-                        : "Vehicle battery is not connected",
-                    dismissible: true,
-                    dismissLabel: "Dismiss message",
-                    id: "battery-error",
-                    onDismiss: () => setBatteryErrorDismissed(true),
-                  },
-                ]
-              : []),
-            ...(batteryLevel <= 40 && !batteryError && !batteryWarningDismissed && hasInitialReading
-              ? [
-                  {
-                    type: "warning" as FlashbarProps.Type,
-                    content: `Battery Level is at ${batteryLevel}%`,
-                    dismissible: true,
-                    dismissLabel: "Dismiss message",
-                    id: "battery-warning",
-                    onDismiss: () => setBatteryWarningDismissed(true),
-                  },
-                ]
-              : []),
-            ...(pageNotifications || []),
-          ]}
-        />
+        allNotifications.length > 0 ? <Flashbar items={allNotifications} /> : null
       }
       {...restProps}
     />

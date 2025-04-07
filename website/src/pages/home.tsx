@@ -2,7 +2,6 @@ import {
   Box,
   Button,
   ExpandableSection,
-  FlashbarProps,
   Grid,
   Header,
   KeyValuePairs,
@@ -18,6 +17,8 @@ import { useEffect, useRef, useState, useLayoutEffect } from "react";
 import { Joystick } from "react-joystick-component";
 import BaseAppLayout from "../components/base-app-layout";
 import { ApiHelper } from "../common/helpers/api-helper";
+import { useModels } from "../common/hooks/use-models";
+import { useAuth } from "../common/hooks/use-authentication";
 
 // Add interfaces for API responses
 interface SensorStatusResponse {
@@ -25,20 +26,6 @@ interface SensorStatusResponse {
   camera_status: string;
   stereo_status: string;
   lidar_status: string;
-}
-
-// Update the ModelsResponse interface
-interface ModelsResponse {
-  models: Array<{
-    model_folder_name: string;
-    model_sensors: string[];
-    is_select_disabled: boolean;
-  }>;
-}
-
-interface ModelLoadingResponse {
-  success: boolean;
-  isModelLoading: string;
 }
 
 interface DriveResponse {
@@ -53,14 +40,8 @@ const HomePage = () => {
     stereo_status: "not_connected",
     lidar_status: "not_connected",
   });
-  const [modelOptions, setModelOptions] = useState<
-    { label: string; value: string; description: string; disabled: boolean }[]
-  >([]);
-  const [selectedModel, setSelectedModel] = useState<{ value: string } | null>(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
-  const [flashbarItems, setFlashbarItems] = useState<FlashbarProps.MessageDefinition[]>([]);
   const [throttle, setThrottle] = useState(30);
-  const [isModelLoaded, setIsModelLoaded] = useState(false);
   const [isInferenceRunning, setIsInferenceRunning] = useState(false);
   const lastJoystickMoveTime = useRef<number>(0);
 
@@ -68,6 +49,11 @@ const HomePage = () => {
   const [defaultExpandCameraSection, setDefaultExpandCameraSection] = useState(true);
   const divLayoutRef = useRef<HTMLDivElement | null>(null);
   const [expandedCameraSection, setExpandedCameraSection] = useState(true);
+
+  // Get all model-related data from context
+  const { modelOptions, selectedModel, isModelLoaded, setSelectedModel, loadModel, reloadModels } =
+    useModels();
+  const { isAuthenticated } = useAuth();
 
   // Check for scrollbars after render and on resize
   useLayoutEffect(() => {
@@ -95,28 +81,9 @@ const HomePage = () => {
     return () => window.removeEventListener("resize", checkForScrollbars);
   }, [expandedCameraSection, defaultExpandCameraSection]);
 
-  const checkInitialModelStatus = async () => {
-    try {
-      const response = await ApiHelper.get<ModelLoadingResponse>("isModelLoading");
-      const selectedModelName = localStorage.getItem("selectedModelName");
-      if (selectedModelName) {
-        setSelectedModel({ value: selectedModelName });
-        if (response?.isModelLoading === "loaded") {
-          setIsModelLoaded(true);
-        } else {
-          pollModelLoadingStatus();
-        }
-      }
-    } catch (error) {
-      console.error("Error checking initial model status:", error);
-    }
-  };
-
   useEffect(() => {
     const initialize = async () => {
       await fetchSensorStatus();
-      await fetchModels();
-      await checkInitialModelStatus();
       setDriveMode("auto");
     };
 
@@ -126,6 +93,12 @@ const HomePage = () => {
       handleStop();
     };
   }, []);
+
+  const handleReloadModels = async () => {
+    if (isAuthenticated) {
+      reloadModels();
+    }
+  };
 
   const setDriveMode = async (mode: "auto" | "manual") => {
     try {
@@ -170,23 +143,6 @@ const HomePage = () => {
     };
   }, []);
 
-  const fetchModels = async () => {
-    try {
-      const response = await ApiHelper.get<ModelsResponse>("models");
-      if (response) {
-        const options = response.models.map((model) => ({
-          label: model.model_folder_name,
-          value: model.model_folder_name,
-          description: model.model_sensors.join(", "),
-          disabled: model.is_select_disabled,
-        }));
-        setModelOptions(options);
-      }
-    } catch (error) {
-      console.error("Error fetching models:", error);
-    }
-  };
-
   const toggleCameraFeed = () => {
     setShowCameraFeed((prevState) => !prevState);
   };
@@ -195,7 +151,6 @@ const HomePage = () => {
   const handleModelSelect = ({ detail }: { detail: any }) => {
     setSelectedModel(detail.selectedOption);
     setIsModalVisible(true);
-    localStorage.setItem("selectedModelName", detail.selectedOption.value);
   };
 
   const handleCancel = () => {
@@ -247,58 +202,12 @@ const HomePage = () => {
   };
 
   const handleLoadModelClick = async () => {
-    try {
-      handleStop();
+    handleStop();
 
-      if (selectedModel) {
-        const modelResponse = await ApiHelper.post<DriveResponse>(
-          `models/${selectedModel.value}/model`,
-          {}
-        );
-        if (modelResponse?.success) {
-          setIsModalVisible(false);
-          setIsModelLoaded(false);
-          localStorage.setItem("selectedModelName", selectedModel.value);
-          showLoadingFlashbar();
-          pollModelLoadingStatus();
-        }
-      }
-    } catch (error) {
-      console.error("Error calling API:", error);
+    if (selectedModel) {
+      setIsModalVisible(false);
+      await loadModel(selectedModel.value);
     }
-  };
-
-  const pollModelLoadingStatus = async () => {
-    const response = await ApiHelper.get<ModelLoadingResponse>("isModelLoading");
-    if (response?.isModelLoading === "loaded" && response?.success) {
-      showSuccessFlashbar();
-      setIsModelLoaded(true);
-    } else {
-      setTimeout(pollModelLoadingStatus, 1000);
-    }
-  };
-
-  const showLoadingFlashbar = () => {
-    setFlashbarItems([
-      {
-        type: "in-progress",
-        loading: true,
-        content: "Model loading...",
-        dismissible: false,
-      },
-    ]);
-  };
-
-  const showSuccessFlashbar = () => {
-    setFlashbarItems([
-      {
-        type: "success",
-        content: "Model loaded successfully",
-        dismissible: true,
-        onDismiss: () => setFlashbarItems([]),
-      },
-    ]);
-    setTimeout(() => setFlashbarItems([]), 5000);
   };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -360,7 +269,8 @@ const HomePage = () => {
 
   return (
     <BaseAppLayout
-      pageNotifications={flashbarItems}
+      // Any page-specific notifications can be passed as additionalNotifications
+      // additionalNotifications={[{...}]}  // Only if you have page-specific notifications
       content={
         <div ref={divLayoutRef}>
           <SpaceBetween size="l">
@@ -465,14 +375,21 @@ const HomePage = () => {
                             <Box color="text-body-secondary">
                               Choose a model to autonomously drive
                             </Box>
-                            <Select
-                              options={modelOptions}
-                              selectedOption={selectedModel}
-                              onChange={handleModelSelect}
-                              placeholder="Select a model"
-                              expandToViewport
-                              triggerVariant="option"
-                            />
+                            <SpaceBetween size="xs" direction="horizontal" alignItems="center">
+                              <Select
+                                options={modelOptions}
+                                selectedOption={selectedModel}
+                                onChange={handleModelSelect}
+                                placeholder="Select a reinforcement model"
+                                expandToViewport
+                                triggerVariant="option"
+                              />
+                              <Button
+                                variant="normal"
+                                onClick={handleReloadModels}
+                                iconName="refresh"
+                              />
+                            </SpaceBetween>
                             <Box variant="small" color="text-body-secondary">
                               Vehicle's sensor configuration must match the model's sensor
                               configuration to enable autonomous driving.
@@ -561,9 +478,11 @@ const HomePage = () => {
                                 />
                               </svg>
                             </Button>
-                            <Box variant="small" color="text-body-secondary">
-                              Use -5 / +5 with caution, increased risk of crashing!
-                            </Box>
+                          </SpaceBetween>
+                          <Box variant="small" color="text-body-secondary">
+                            Use -5 / +5 with caution, increased risk of crashing!
+                          </Box>
+                          <SpaceBetween size="l" direction="horizontal">
                             <Button
                               variant="normal"
                               onClick={() => handleThrottleFive("down")}
@@ -685,9 +604,11 @@ const HomePage = () => {
                               />
                             </svg>
                           </Button>
-                          <Box variant="small" color="text-body-secondary">
-                            Use -5 / +5 with caution, increased risk of crashing!
-                          </Box>
+                        </SpaceBetween>
+                        <Box variant="small" color="text-body-secondary">
+                          Use -5 / +5 with caution, increased risk of crashing!
+                        </Box>
+                        <SpaceBetween size="l" direction="horizontal">
                           <Button
                             variant="normal"
                             onClick={() => handleThrottleFive("down")}
