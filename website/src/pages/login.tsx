@@ -14,6 +14,7 @@ import * as React from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../common/hooks/use-authentication";
+import { ApiHelper } from "../common/helpers/api-helper";
 
 // eslint-disable-next-line react-refresh/only-export-components
 export default () => {
@@ -80,24 +81,34 @@ export default () => {
       try {
         const formData = new FormData();
         formData.append("password", password);
-        console.log("CSRF Token:", csrfToken);
         const response = await axios.post("/login", formData, {
           headers: {
             "X-CSRF-Token": csrfToken,
           },
-          withCredentials: true, // This is crucial for cookie handling
+          withCredentials: true,
         });
 
         if (response.data === "failure") {
           setError("Login failed - invalid credentials");
           setValue("");
         } else {
-          console.log("Login successful");
-          // The cookies will be automatically stored by the browser
-          // You can verify the cookies are set using:
-          console.log("Cookies set:", document.cookie);
+          // Wait for cookies to be set
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          // Verify cookie exists before proceeding
+          const hasCookie = document.cookie
+            .split(";")
+            .some(cookie => cookie.trim().startsWith("deepracer_token="));
+            
+          if (!hasCookie) {
+            setError("Login succeeded but session not established. Please try again.");
+            return;
+          }
+
+          console.log("Login successful with valid session");
+          ApiHelper.setLoginTimestamp(); // Set grace period start
           login();
-          navigate("/home");
+          navigate("/home", { replace: true });
         }
       } catch (error) {
         if (axios.isAxiosError(error) && error.response?.status === 400) {
