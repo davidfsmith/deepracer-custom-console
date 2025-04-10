@@ -71,6 +71,7 @@ export default () => {
   const submitLogin = React.useCallback(
     async (password: string) => {
       console.log("Attempting login...");
+      ApiHelper.setLoginTimestamp(); // Set grace period start
       setError("");
 
       if (!password) {
@@ -106,7 +107,6 @@ export default () => {
           }
 
           console.log("Login successful with valid session");
-          ApiHelper.setLoginTimestamp(); // Set grace period start
           login();
           navigate("/home", { replace: true });
         }
