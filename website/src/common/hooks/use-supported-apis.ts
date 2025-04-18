@@ -5,6 +5,7 @@ import { useAuth } from "./use-authentication";
 interface SupportedApisState {
   supportedApis: string[];
   isEmergencyStopSupported: boolean;
+  isDeviceStatusSupported: boolean;
   isLoading: boolean;
   hasError: boolean;
 }
@@ -22,6 +23,7 @@ export const useSupportedApis = () => {
 export const useSupportedApisProvider = () => {
   const [supportedApis, setSupportedApis] = useState<string[]>([]);
   const [isEmergencyStopSupported, setIsEmergencyStopSupported] = useState<boolean>(false);
+  const [isDeviceStatusSupported, setIsDeviceStatusSupported] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [hasError, setHasError] = useState<boolean>(false);
   const { isAuthenticated } = useAuth();
@@ -31,6 +33,7 @@ export const useSupportedApisProvider = () => {
     if (!isAuthenticated) {
       setSupportedApis([]);
       setIsEmergencyStopSupported(false);
+      setIsDeviceStatusSupported(false);
       setIsLoading(false);
       setHasError(false);
       return;
@@ -48,16 +51,19 @@ export const useSupportedApisProvider = () => {
         if (isSubscribed && response?.success) {
           setSupportedApis(response.apis_supported);
           setIsEmergencyStopSupported(response.apis_supported.includes("/api/emergency_stop"));
+          setIsDeviceStatusSupported(response.apis_supported.includes("/api/get_device_status"));
           setHasError(false);
         } else if (isSubscribed) {
           setSupportedApis([]);
           setIsEmergencyStopSupported(false);
+          setIsDeviceStatusSupported(false);
           setHasError(true);
         }
       } catch (error) {
         console.error("Error checking supported APIs:", error);
         if (isSubscribed) {
           setSupportedApis([]);
+          setIsEmergencyStopSupported(false);
           setIsEmergencyStopSupported(false);
           setHasError(true);
         }
@@ -81,6 +87,7 @@ export const useSupportedApisProvider = () => {
   const supportedApisContextValue: SupportedApisState = {
     supportedApis,
     isEmergencyStopSupported,
+    isDeviceStatusSupported,
     isLoading,
     hasError,
   };

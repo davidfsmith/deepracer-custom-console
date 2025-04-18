@@ -16,9 +16,11 @@ import axios from "axios";
 import { useEffect, useRef, useState, useLayoutEffect } from "react";
 import { Joystick } from "react-joystick-component";
 import BaseAppLayout from "../components/base-app-layout";
+import DeviceStatusPanel from "../components/device-status-panel";
 import { ApiHelper } from "../common/helpers/api-helper";
 import { useModels } from "../common/hooks/use-models";
 import { useAuth } from "../common/hooks/use-authentication";
+import { useSupportedApis } from "../common/hooks/use-supported-apis";
 
 // Add interfaces for API responses
 interface SensorStatusResponse {
@@ -54,6 +56,11 @@ const HomePage = () => {
   const { modelOptions, selectedModel, isModelLoaded, setSelectedModel, loadModel, reloadModels } =
     useModels();
   const { isAuthenticated } = useAuth();
+
+  // Split panel
+  const { isDeviceStatusSupported } = useSupportedApis();
+  const [isSplitPanelOpen, setIsSplitPanelOpen] = useState(false);
+  const [splitPanelSize, setSplitPanelSize] = useState(150);
 
   // Check for scrollbars after render and on resize
   useLayoutEffect(() => {
@@ -697,6 +704,15 @@ const HomePage = () => {
           </SpaceBetween>
         </div>
       }
+      splitPanel={
+        isDeviceStatusSupported ? (
+          <DeviceStatusPanel isInferenceRunning={isInferenceRunning} />
+        ) : undefined
+      }
+      splitPanelOpen={isSplitPanelOpen}
+      splitPanelSize={splitPanelSize}
+      onSplitPanelToggle={({ detail }) => setIsSplitPanelOpen(detail.open)}
+      onSplitPanelResize={({ detail }) => setSplitPanelSize(detail.size)}
     />
   );
 };
