@@ -2,6 +2,7 @@ import {
   Box,
   Button,
   ExpandableSection,
+  FlashbarProps,
   Grid,
   Header,
   KeyValuePairs,
@@ -62,6 +63,9 @@ const HomePage = () => {
   const [isSplitPanelOpen, setIsSplitPanelOpen] = useState(false);
   const [splitPanelSize, setSplitPanelSize] = useState(150);
 
+  const [localFlashMessages, setLocalFlashMessages] = useState<FlashbarProps.MessageDefinition[]>(
+    []
+  );
   // Check for scrollbars after render and on resize
   useLayoutEffect(() => {
     const checkForScrollbars = () => {
@@ -173,9 +177,6 @@ const HomePage = () => {
     // Cleanup on component unmount
     return () => {
       clearInterval(intervalId);
-      if (cameraImgRef.current) {
-        cameraImgRef.current.src = ""; // Clear camera feed source
-      }
     };
   }, []);
 
@@ -301,8 +302,7 @@ const HomePage = () => {
 
   return (
     <BaseAppLayout
-      // Any page-specific notifications can be passed as additionalNotifications
-      // additionalNotifications={[{...}]}  // Only if you have page-specific notifications
+      additionalNotifications={[...localFlashMessages]}
       content={
         <div ref={divLayoutRef}>
           <SpaceBetween size="l">
@@ -706,7 +706,11 @@ const HomePage = () => {
       }
       splitPanel={
         isDeviceStatusSupported ? (
-          <DeviceStatusPanel isInferenceRunning={isInferenceRunning} />
+          <DeviceStatusPanel
+            isInferenceRunning={isInferenceRunning}
+            notifications={localFlashMessages}
+            setNotifications={setLocalFlashMessages}
+          />
         ) : undefined
       }
       splitPanelOpen={isSplitPanelOpen}
