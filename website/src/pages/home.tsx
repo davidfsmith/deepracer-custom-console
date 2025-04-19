@@ -61,7 +61,7 @@ const HomePage = () => {
   // Split panel
   const { isDeviceStatusSupported } = useSupportedApis();
   const [isSplitPanelOpen, setIsSplitPanelOpen] = useState(false);
-  const [splitPanelSize, setSplitPanelSize] = useState(150);
+  const [splitPanelSize, setSplitPanelSize] = useState(220);
 
   const [localFlashMessages, setLocalFlashMessages] = useState<FlashbarProps.MessageDefinition[]>(
     []

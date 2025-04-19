@@ -2,10 +2,10 @@ import { useEffect, useState, useCallback } from "react";
 import {
   Box,
   SplitPanel,
-  KeyValuePairs,
   StatusIndicator,
   SpaceBetween,
   FlashbarProps,
+  Grid,
 } from "@cloudscape-design/components";
 import { ApiHelper } from "../common/helpers/api-helper";
 
@@ -23,6 +23,9 @@ interface DeviceMetrics {
   cpuFreq: number;
   cpuFreqMax: number;
   cpuFreqPct: number;
+  latencyMean: number;
+  latencyP95: number;
+  fpsMean: number;
 }
 
 interface DeviceStatusResponse {
@@ -33,6 +36,9 @@ interface DeviceStatusResponse {
   cpu_temp: number;
   cpu_freq: number;
   cpu_freq_max: number;
+  latency_mean: number;
+  latency_p95: number;
+  fps_mean: number;
 }
 
 const DeviceStatusPanel = ({ isInferenceRunning, setNotifications }: DeviceStatusProps) => {
@@ -45,6 +51,10 @@ const DeviceStatusPanel = ({ isInferenceRunning, setNotifications }: DeviceStatu
     },
     memory: { warning: 85, error: 95 },
     disk: { warning: 90, error: 95 },
+    performance: {
+      latency_p95: { warning: 1.2, error: 1.4 },
+      fps_mean: { warning: 1.05, error: 1.1 },
+    },
   });
 
   const [metrics, setMetrics] = useState<DeviceMetrics>({
@@ -55,6 +65,9 @@ const DeviceStatusPanel = ({ isInferenceRunning, setNotifications }: DeviceStatu
     cpuFreq: 0,
     cpuFreqMax: 0,
     cpuFreqPct: 0,
+    latencyMean: 0.0,
+    latencyP95: 0.0,
+    fpsMean: 0.0,
   });
 
   const [updatesSinceInferenceStarted, setUpdatesSinceInferenceStarted] = useState(0);
@@ -70,8 +83,8 @@ const DeviceStatusPanel = ({ isInferenceRunning, setNotifications }: DeviceStatu
     (id: string, content: string, type: FlashbarProps.Type) => {
       // Check if a message with this ID already exists and update it if needed
       setNotifications((prev) => {
-        const existingMessageIndex = prev.findIndex(message => message.id === id);
-        
+        const existingMessageIndex = prev.findIndex((message) => message.id === id);
+
         // Create the new/updated message
         const newMessage: FlashbarProps.MessageDefinition = {
           id,
@@ -80,14 +93,14 @@ const DeviceStatusPanel = ({ isInferenceRunning, setNotifications }: DeviceStatu
           dismissible: type !== "in-progress",
           onDismiss: type !== "in-progress" ? () => removeFlashMessage(id) : undefined,
         };
-        
+
         // If message already exists, update it
         if (existingMessageIndex >= 0) {
           const updatedMessages = [...prev];
           updatedMessages[existingMessageIndex] = newMessage;
           return updatedMessages;
         }
-        
+
         // Otherwise add a new message
         return [...prev, newMessage];
       });
@@ -168,6 +181,9 @@ const DeviceStatusPanel = ({ isInferenceRunning, setNotifications }: DeviceStatu
             cpuFreq: parseFloat(response.cpu_freq.toFixed(0)),
             cpuFreqMax: parseFloat(response.cpu_freq_max.toFixed(0)),
             cpuFreqPct: (response.cpu_freq / response.cpu_freq_max) * 100,
+            latencyMean: parseFloat(response.latency_mean.toFixed(1)),
+            latencyP95: parseFloat(response.latency_p95.toFixed(1)),
+            fpsMean: parseFloat(response.fps_mean.toFixed(1)),
           });
         }
       } catch (error) {
@@ -203,79 +219,131 @@ const DeviceStatusPanel = ({ isInferenceRunning, setNotifications }: DeviceStatu
     return "error";
   };
 
+  const checkPerformanceStatus = (
+    value: number,
+    referenceValue: number,
+    thresholdPair: [number, number],
+    isInferenceRunning: boolean
+  ): "success" | "warning" | "error" | "stopped" | "pending" => {
+    if (!isInferenceRunning) return "stopped";
+    if (updatesSinceInferenceStarted <= 3) return "pending";
+    const [warning, error] = thresholdPair;
+    if (value/referenceValue < warning) return "success";
+    if (value/referenceValue < error) return "warning";
+    return "error";
+  };
+
   return (
     <SplitPanel header={"Car Health"} hidePreferencesButton={true} closeBehavior="collapse">
       <SpaceBetween size="xs" direction="vertical">
-        <KeyValuePairs
-          columns={4}
-          items={[
-            {
-              label: "CPU",
-              value: (
-                <SpaceBetween size="m" direction="horizontal">
-                  <Box>Usage:</Box>
-                  <StatusIndicator
-                    type={checkStatus(metrics.cpuUsage, [
-                      thresholds.cpu.usage.warning,
-                      thresholds.cpu.usage.error,
-                    ])}
-                  >
-                    {metrics.cpuUsage}%
-                  </StatusIndicator>
-                  <Box>Temp:</Box>{" "}
-                  <StatusIndicator
-                    type={checkStatus(metrics.temperature, [
-                      thresholds.cpu.temperature.warning,
-                      thresholds.cpu.temperature.error,
-                    ])}
-                  >
-                    {metrics.temperature}°C
-                  </StatusIndicator>
-                </SpaceBetween>
-              ),
-            },
-            {
-              label: "CPU Frequency",
-              value: (
-                <StatusIndicator
-                  type={getCPUStatusType(
-                    metrics.cpuFreqPct,
-                    [thresholds.cpu.frequency.warning, thresholds.cpu.frequency.error],
-                    isInferenceRunning && updatesSinceInferenceStarted > 2
-                  )}
-                >
-                  {metrics.cpuFreq} MHz / {metrics.cpuFreqMax} MHz
-                </StatusIndicator>
-              ),
-            },
-            {
-              label: "Memory Usage",
-              value: (
-                <StatusIndicator
-                  type={checkStatus(metrics.memoryUsage, [
-                    thresholds.memory.warning,
-                    thresholds.memory.error,
-                  ])}
-                >
-                  {metrics.memoryUsage}%
-                </StatusIndicator>
-              ),
-            },
-            {
-              label: "Disk Usage",
-              value: (
-                <StatusIndicator
-                  type={checkStatus(metrics.diskUsage, [
-                    thresholds.disk.warning,
-                    thresholds.disk.error,
-                  ])}
-                >
-                  {metrics.diskUsage}%
-                </StatusIndicator>
-              ),
-            },
+        <Grid
+          gridDefinition={[
+            { colspan: { default: 12, xxs: 12, xs: 4 } },
+            { colspan: { default: 6, xxs: 6, xs: 4 } },
+            { colspan: { default: 6, xxs: 6, xs: 4 } },
           ]}
-        />
+        >
+          {/* CPU Metrics */}
+          <SpaceBetween size="xxs" direction="vertical">
+            <Box variant="h4">CPU</Box>
+            <div style={{ display: "grid", gridTemplateColumns: "100px auto", rowGap: "6px" }}>
+              <Box>Usage:</Box>
+              <StatusIndicator
+                type={checkStatus(metrics.cpuUsage, [
+                  thresholds.cpu.usage.warning,
+                  thresholds.cpu.usage.error,
+                ])}
+              >
+                {metrics.cpuUsage}%
+              </StatusIndicator>
+
+              <Box>Temperature:</Box>
+              <StatusIndicator
+                type={checkStatus(metrics.temperature, [
+                  thresholds.cpu.temperature.warning,
+                  thresholds.cpu.temperature.error,
+                ])}
+              >
+                {metrics.temperature}°C
+              </StatusIndicator>
+
+              <Box>Frequency:</Box>
+              <StatusIndicator
+                type={getCPUStatusType(
+                  metrics.cpuFreqPct,
+                  [thresholds.cpu.frequency.warning, thresholds.cpu.frequency.error],
+                  isInferenceRunning && updatesSinceInferenceStarted > 2
+                )}
+              >
+                {metrics.cpuFreq} MHz / {metrics.cpuFreqMax} MHz
+              </StatusIndicator>
+            </div>
+          </SpaceBetween>
+
+          {/* Memory & Disk Usage */}
+          <SpaceBetween size="xxs" direction="vertical">
+            <Box variant="h4">Memory Usage</Box>
+            <div style={{ display: "grid", gridTemplateColumns: "100px auto", rowGap: "6px" }}>
+              <Box>RAM:</Box>
+              <StatusIndicator
+                type={checkStatus(metrics.memoryUsage, [
+                  thresholds.memory.warning,
+                  thresholds.memory.error,
+                ])}
+              >
+                {metrics.memoryUsage}%
+              </StatusIndicator>
+
+              <Box>Disk:</Box>
+              <StatusIndicator
+                type={checkStatus(metrics.diskUsage, [
+                  thresholds.disk.warning,
+                  thresholds.disk.error,
+                ])}
+              >
+                {metrics.diskUsage}%
+              </StatusIndicator>
+            </div>
+          </SpaceBetween>
+
+          {/* FPS & Latency */}
+          <SpaceBetween size="xxs" direction="vertical">
+            <Box variant="h4">Performance</Box>
+            <div style={{ display: "grid", gridTemplateColumns: "100px auto", rowGap: "6px" }}>
+              <Box>Mean Latency:</Box>
+                <StatusIndicator
+                type={isInferenceRunning ? "info" : "stopped"}
+                >
+                {metrics.latencyMean.toFixed(1)} ms
+                </StatusIndicator>
+              <Box>95% Latency:</Box>
+              <StatusIndicator
+                type={checkPerformanceStatus(
+                  metrics.latencyP95,
+                  metrics.latencyMean,
+                  [thresholds.performance.latency_p95.warning, thresholds.performance.latency_p95.warning],
+                  isInferenceRunning
+                )}
+              >
+                {metrics.latencyP95.toFixed(1)} ms
+              </StatusIndicator>
+              <Box>Frame Rate:</Box>
+              <StatusIndicator
+                type={checkPerformanceStatus(
+                  30.0,
+                  metrics.fpsMean,
+                  [thresholds.performance.fps_mean.warning, thresholds.performance.fps_mean.error],
+                  isInferenceRunning
+                )}
+              >
+                {metrics.fpsMean.toFixed(1)} fps
+              </StatusIndicator>
+            </div>
+          </SpaceBetween>
+
+          {/* Empty grid cell for layout balance */}
+          <div></div>
+        </Grid>
       </SpaceBetween>
     </SplitPanel>
   );
