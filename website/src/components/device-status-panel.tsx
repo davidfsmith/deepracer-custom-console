@@ -45,7 +45,7 @@ const DeviceStatusPanel = ({ isInferenceRunning, setNotifications }: DeviceStatu
   // Define thresholds for different metrics
   const [thresholds] = useState({
     cpu: {
-      usage: { warning: 90, error: 95 },
+      usage: { warning: 90, error: 99 },
       temperature: { warning: 75, error: 90 },
       frequency: { warning: 75, error: 50 }, // Note: For CPU frequency, higher is better
     },
@@ -321,7 +321,7 @@ const DeviceStatusPanel = ({ isInferenceRunning, setNotifications }: DeviceStatu
                 type={checkPerformanceStatus(
                   metrics.latencyP95,
                   metrics.latencyMean,
-                  [thresholds.performance.latency_p95.warning, thresholds.performance.latency_p95.warning],
+                  [thresholds.performance.latency_p95.warning, thresholds.performance.latency_p95.error],
                   isInferenceRunning
                 )}
               >
