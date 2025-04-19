@@ -52,7 +52,7 @@ const DeviceStatusPanel = ({ isInferenceRunning, setNotifications }: DeviceStatu
     memory: { warning: 85, error: 95 },
     disk: { warning: 90, error: 95 },
     performance: {
-      latency_p95: { warning: 1.2, error: 1.4 },
+      latency_p95: { warning: 1.25, error: 1.5 },
       fps_mean: { warning: 1.05, error: 1.1 },
     },
   });
