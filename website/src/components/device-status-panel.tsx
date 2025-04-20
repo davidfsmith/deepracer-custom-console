@@ -73,6 +73,7 @@ const DeviceStatusPanel = ({ isInferenceRunning, setNotifications }: DeviceStatu
       memory: { warning: 85, error: 90, compare: "gt" as ComparisonOperator },
       disk: { warning: 90, error: 95, compare: "gt" as ComparisonOperator },
       performance: {
+        latency_mean: { warning: 20.0, error: 30.0, compare: "gt" as ComparisonOperator },
         latency_p95: { warning: 1.35, error: 1.75, compare: "gt" as ComparisonOperator },
         fps_mean: { warning: 1.05, error: 1.1, compare: "gt" as ComparisonOperator },
       },
@@ -102,7 +103,7 @@ const DeviceStatusPanel = ({ isInferenceRunning, setNotifications }: DeviceStatu
   );
 
   const addFlashMessage = useCallback(
-    (id: string, content: string, type: FlashbarProps.Type) => {
+    (id: string, content: string, type: FlashbarProps.Type, header?: string) => {
       // Check if a message with this ID already exists and update it if needed
       setNotifications((prev) => {
         const existingMessageIndex = prev.findIndex((message) => message.id === id);
@@ -114,6 +115,7 @@ const DeviceStatusPanel = ({ isInferenceRunning, setNotifications }: DeviceStatu
           type,
           dismissible: type !== "in-progress",
           onDismiss: type !== "in-progress" ? () => removeFlashMessage(id) : undefined,
+          ...(header && { header }),
         };
 
         // If message already exists, update it
@@ -171,79 +173,146 @@ const DeviceStatusPanel = ({ isInferenceRunning, setNotifications }: DeviceStatu
 
   const allAlerts = useMemo(
     () => ({
-      "device-status-cpu-usage": {
-        metricValue: metrics.cpuUsage,
-        status: checkStatus(metrics.cpuUsage, thresholds.cpu.usage),
-        warningMessage: "CPU Usage is high",
-        errorMessage: "CPU Usage is extremely high",
+      system: {
+        "device-status-memory-usage": {
+          metricValue: metrics.memoryUsage,
+          status: checkStatus(metrics.memoryUsage, thresholds.memory),
+          warningMessage: "Memory Usage is high",
+          errorMessage: "Memory Usage is extremely high",
+        },
+        "device-status-disk-usage": {
+          metricValue: metrics.diskUsage,
+          status: checkStatus(metrics.diskUsage, thresholds.disk),
+          warningMessage: "Disk Usage is high",
+          errorMessage: "Disk Usage is extremely high",
+        },
+        "device-status-cpu-freq": {
+          metricValue: (metrics.cpuFreq / metrics.cpuFreqMax) * 100.0,
+          status: checkStatusWithInference(
+            (metrics.cpuFreq / metrics.cpuFreqMax) * 100.0,
+            thresholds.cpu.frequency,
+            isInferenceRunning,
+            2,
+            "info"
+          ),
+          warningMessage: "CPU Frequency is low",
+          errorMessage: "CPU Frequency is critically low",
+          updateDelay: 2,
+          noInferenceStatus: "info" as "info" | "stopped" | "pending",
+        },
       },
-      "device-status-cpu-temp": {
-        metricValue: metrics.temperature,
-        status: checkStatus(metrics.temperature, thresholds.cpu.temperature),
-        warningMessage: "CPU Temperature is high",
-        errorMessage: "CPU Temperature is extremely high",
-      },
-      "device-status-memory-usage": {
-        metricValue: metrics.memoryUsage,
-        status: checkStatus(metrics.memoryUsage, thresholds.memory),
-        warningMessage: "Memory Usage is high",
-        errorMessage: "Memory Usage is extremely high",
-      },
-      "device-status-disk-usage": {
-        metricValue: metrics.diskUsage,
-        status: checkStatus(metrics.diskUsage, thresholds.disk),
-        warningMessage: "Disk Usage is high",
-        errorMessage: "Disk Usage is extremely high",
-      },
-      "device-status-cpu-freq": {
-        metricValue: (metrics.cpuFreq / metrics.cpuFreqMax) * 100.0,
-        status: checkStatusWithInference(
-          (metrics.cpuFreq / metrics.cpuFreqMax) * 100.0,
-          thresholds.cpu.frequency,
-          isInferenceRunning,
-          2,
-          "info"
-        ),
-        warningMessage: "CPU Frequency is low",
-        errorMessage: "CPU Frequency is critically low",
-        updateDelay: 2,
-        noInferenceStatus: "info" as "info" | "stopped" | "pending",
-      },
-      "device-status-latency-p95": {
-        metricValue: metrics.latencyP95 / metrics.latencyMean,
-        status: checkStatusWithInference(
-          metrics.latencyP95 / metrics.latencyMean,
-          thresholds.performance.latency_p95,
-          isInferenceRunning,
-          2,
-          "stopped"
-        ),
-        warningMessage: "95% Latency is high",
-        errorMessage: "95% Latency is critically high",
-        updateDelay: 2,
-        noInferenceStatus: "stopped" as "info" | "stopped" | "pending",
-      },
-      "device-status-fps-mean": {
-        metricValue: 30.0 / metrics.fpsMean,
-        status: checkStatusWithInference(
-          30.0 / metrics.fpsMean,
-          thresholds.performance.fps_mean,
-          isInferenceRunning,
-          2,
-          "stopped"
-        ),
-        warningMessage: "Frame Rate is low",
-        errorMessage: "Frame Rate is critically low",
-        updateDelay: 2,
-        noInferenceStatus: "stopped" as "info" | "stopped" | "pending",
+      performance: {
+        "device-status-cpu-temp": {
+          metricValue: metrics.temperature,
+          status: checkStatus(metrics.temperature, thresholds.cpu.temperature),
+          warningMessage: "CPU Temperature is high",
+          errorMessage: "CPU Temperature is extremely high",
+        },
+        "device-status-cpu-usage": {
+          metricValue: metrics.cpuUsage,
+          status: checkStatusWithInference(
+            metrics.cpuUsage,
+            thresholds.cpu.usage,
+            isInferenceRunning,
+            2,
+            "info"
+          ),
+          warningMessage: "CPU Usage is high",
+          errorMessage: "CPU Usage is extremely high",
+          updateDelay: 2,
+        },
+        "device-status-latency": {
+          metricValue: metrics.latencyMean,
+          status: checkStatusWithInference(
+            metrics.latencyMean,
+            thresholds.performance.latency_mean,
+            isInferenceRunning,
+            2,
+            "stopped"
+          ),
+          warningMessage: "Latency is high",
+          errorMessage: "Latency is critically high",
+          updateDelay: 2,
+          noInferenceStatus: "stopped" as "info" | "stopped" | "pending",
+        },
+        "device-status-latency-p95": {
+          metricValue: metrics.latencyP95 / metrics.latencyMean,
+          status: checkStatusWithInference(
+            metrics.latencyP95 / metrics.latencyMean,
+            thresholds.performance.latency_p95,
+            isInferenceRunning,
+            2,
+            "stopped"
+          ),
+          warningMessage: "95% Latency is high",
+          errorMessage: "95% Latency is critically high",
+          updateDelay: 2,
+          noInferenceStatus: "stopped" as "info" | "stopped" | "pending",
+        },
+        "device-status-fps-mean": {
+          metricValue: 30.0 / metrics.fpsMean,
+          status: checkStatusWithInference(
+            30.0 / metrics.fpsMean,
+            thresholds.performance.fps_mean,
+            isInferenceRunning,
+            2,
+            "stopped"
+          ),
+          warningMessage: "Frame Rate is low",
+          errorMessage: "Frame Rate is critically low",
+          updateDelay: 2,
+          noInferenceStatus: "stopped" as "info" | "stopped" | "pending",
+        },
       },
     }),
     [metrics, thresholds, checkStatus, checkStatusWithInference, isInferenceRunning]
   );
 
+  // Get combined performance metrics status and message
+  const performanceMetricsAlert = useMemo(() => {
+    const performanceAlerts = Object.values(allAlerts.performance);
+
+    // Get the worst status (error > warning > success/info/stopped/pending)
+    const getStatusPriority = (status: string): number => {
+      switch (status) {
+        case "error":
+          return 2;
+        case "warning":
+          return 1;
+        default:
+          return 0; // info, success, stopped, pending
+      }
+    };
+
+    const worstStatus = performanceAlerts
+      .map((alert) => alert.status)
+      .reduce(
+        (worst, current) =>
+          getStatusPriority(current) > getStatusPriority(worst) ? current : worst,
+        "success" as string
+      );
+
+    // Build a combined message including both warnings and errors
+    const errorMessages = performanceAlerts
+      .filter((alert) => alert.status === "error")
+      .map((alert) => alert.errorMessage);
+
+    const warningMessages = performanceAlerts
+      .filter((alert) => alert.status === "warning")
+      .map((alert) => alert.warningMessage);
+
+    const messages = [...errorMessages, ...warningMessages];
+
+    return {
+      status: worstStatus,
+      message: messages.join(". ") + ".",
+      hasIssue: worstStatus === "warning" || worstStatus === "error",
+    };
+  }, [allAlerts.performance]);
+
   // Separate effects for handling warning and error messages based on metrics
   useEffect(() => {
-    Object.entries(allAlerts).forEach(([alertId, data]) => {
+    Object.entries(allAlerts.system).forEach(([alertId, data]) => {
       if (data.status === "error") {
         addFlashMessage(alertId, data.errorMessage, "error");
       } else if (data.status === "warning") {
@@ -252,7 +321,41 @@ const DeviceStatusPanel = ({ isInferenceRunning, setNotifications }: DeviceStatu
         removeFlashMessage(alertId);
       }
     });
-  }, [addFlashMessage, removeFlashMessage, allAlerts]);
+  }, [addFlashMessage, removeFlashMessage, allAlerts.system]);
+  
+  useEffect(() => {
+    // Handle combined performance metrics alert
+    const performanceAlertId = "device-status-performance";
+    if (performanceMetricsAlert.hasIssue) {
+      addFlashMessage(
+        performanceAlertId,
+        performanceMetricsAlert.message,
+        performanceMetricsAlert.status as FlashbarProps.Type,
+        "Potential Performance Issue"
+      );
+    } else {
+      // For performance messages, convert to info with last contents as reference
+      setNotifications((prev) => {
+        const existingMessageIndex = prev.findIndex((message) => message.id === performanceAlertId);
+        if (existingMessageIndex >= 0) {
+          const existingMessage = prev[existingMessageIndex];
+          if (existingMessage.type === "info") {
+            return prev; // If the status is already "info", do nothing
+          }
+          const lastContent = existingMessage.content;
+          const updatedMessages = [...prev];
+          updatedMessages[existingMessageIndex] = {
+            ...existingMessage,
+            type: "info",
+            content: `Last Error: ${lastContent}`,
+            header: "Performance issue resolved",
+          };
+          return updatedMessages;
+        }
+        return prev;
+      });
+    }
+  }, [addFlashMessage, removeFlashMessage, performanceMetricsAlert, setNotifications]);
 
   // Count updates since inference started
   useEffect(() => {
@@ -306,17 +409,17 @@ const DeviceStatusPanel = ({ isInferenceRunning, setNotifications }: DeviceStatu
             <Box variant="h4">CPU</Box>
             <div style={{ display: "grid", gridTemplateColumns: "100px auto", rowGap: "6px" }}>
               <Box>Usage:</Box>
-              <StatusIndicator type={allAlerts["device-status-cpu-usage"].status}>
+              <StatusIndicator type={allAlerts.performance["device-status-cpu-usage"].status}>
                 {metrics.cpuUsage}%
               </StatusIndicator>
 
               <Box>Temperature:</Box>
-              <StatusIndicator type={allAlerts["device-status-cpu-temp"].status}>
+              <StatusIndicator type={allAlerts.performance["device-status-cpu-temp"].status}>
                 {metrics.temperature}°C
               </StatusIndicator>
 
               <Box>Frequency:</Box>
-              <StatusIndicator type={allAlerts["device-status-cpu-freq"].status}>
+              <StatusIndicator type={allAlerts.system["device-status-cpu-freq"].status}>
                 {metrics.cpuFreq} MHz / {metrics.cpuFreqMax} MHz
               </StatusIndicator>
             </div>
@@ -327,12 +430,12 @@ const DeviceStatusPanel = ({ isInferenceRunning, setNotifications }: DeviceStatu
             <Box variant="h4">Memory Usage</Box>
             <div style={{ display: "grid", gridTemplateColumns: "100px auto", rowGap: "6px" }}>
               <Box>RAM:</Box>
-              <StatusIndicator type={allAlerts["device-status-memory-usage"].status}>
+              <StatusIndicator type={allAlerts.system["device-status-memory-usage"].status}>
                 {metrics.memoryUsage}%
               </StatusIndicator>
 
               <Box>Disk:</Box>
-              <StatusIndicator type={allAlerts["device-status-disk-usage"].status}>
+              <StatusIndicator type={allAlerts.system["device-status-disk-usage"].status}>
                 {metrics.diskUsage}%
               </StatusIndicator>
             </div>
@@ -343,15 +446,15 @@ const DeviceStatusPanel = ({ isInferenceRunning, setNotifications }: DeviceStatu
             <Box variant="h4">Performance</Box>
             <div style={{ display: "grid", gridTemplateColumns: "100px auto", rowGap: "6px" }}>
               <Box>Mean Latency:</Box>
-              <StatusIndicator type={isInferenceRunning ? "info" : "stopped"}>
+              <StatusIndicator type={allAlerts.performance["device-status-latency"].status}>
                 {metrics.latencyMean.toFixed(1)} ms
               </StatusIndicator>
               <Box>95% Latency:</Box>
-              <StatusIndicator type={allAlerts["device-status-latency-p95"].status}>
+              <StatusIndicator type={allAlerts.performance["device-status-latency-p95"].status}>
                 {metrics.latencyP95.toFixed(1)} ms
               </StatusIndicator>
               <Box>Frame Rate:</Box>
-              <StatusIndicator type={allAlerts["device-status-fps-mean"].status}>
+              <StatusIndicator type={allAlerts.performance["device-status-fps-mean"].status}>
                 {metrics.fpsMean.toFixed(1)} fps
               </StatusIndicator>
             </div>
