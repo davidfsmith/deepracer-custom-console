@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import {
   Box,
   SplitPanel,
@@ -22,7 +22,6 @@ interface DeviceMetrics {
   temperature: number;
   cpuFreq: number;
   cpuFreqMax: number;
-  cpuFreqPct: number;
   latencyMean: number;
   latencyP95: number;
   fpsMean: number;
@@ -42,20 +41,44 @@ interface DeviceStatusResponse {
 }
 
 const DeviceStatusPanel = ({ isInferenceRunning, setNotifications }: DeviceStatusProps) => {
-  // Define thresholds for different metrics
-  const [thresholds] = useState({
-    cpu: {
-      usage: { warning: 90, error: 99 },
-      temperature: { warning: 75, error: 90 },
-      frequency: { warning: 75, error: 50 }, // Note: For CPU frequency, higher is better
-    },
-    memory: { warning: 85, error: 95 },
-    disk: { warning: 90, error: 95 },
-    performance: {
-      latency_p95: { warning: 1.25, error: 1.5 },
-      fps_mean: { warning: 1.05, error: 1.1 },
-    },
-  });
+  // Define comparison types
+  type ComparisonOperator = "gt" | "lt" | "gte" | "lte" | "eq";
+
+  // Create a function that returns a comparator based on the operator string
+  const getComparator = useCallback((op: ComparisonOperator) => {
+    switch (op) {
+      case "gt":
+        return (a: number, b: number) => a > b;
+      case "lt":
+        return (a: number, b: number) => a < b;
+      case "gte":
+        return (a: number, b: number) => a >= b;
+      case "lte":
+        return (a: number, b: number) => a <= b;
+      case "eq":
+        return (a: number, b: number) => a === b;
+      default:
+        return (a: number, b: number) => a > b; // Default to greater than
+    }
+  }, []);
+
+  // Define thresholds for different metrics, wrapped in useMemo to maintain reference equality
+  const thresholds = useMemo(
+    () => ({
+      cpu: {
+        usage: { warning: 90, error: 99, compare: "gt" as ComparisonOperator },
+        temperature: { warning: 75, error: 90, compare: "gt" as ComparisonOperator },
+        frequency: { warning: 85, error: 75, compare: "lt" as ComparisonOperator }, // Note: For CPU frequency, higher is better
+      },
+      memory: { warning: 85, error: 90, compare: "gt" as ComparisonOperator },
+      disk: { warning: 90, error: 95, compare: "gt" as ComparisonOperator },
+      performance: {
+        latency_p95: { warning: 1.35, error: 1.75, compare: "gt" as ComparisonOperator },
+        fps_mean: { warning: 1.05, error: 1.1, compare: "gt" as ComparisonOperator },
+      },
+    }),
+    []
+  ); // Empty dependency array means this will only be calculated once
 
   const [metrics, setMetrics] = useState<DeviceMetrics>({
     cpuUsage: 0,
@@ -64,7 +87,6 @@ const DeviceStatusPanel = ({ isInferenceRunning, setNotifications }: DeviceStatu
     temperature: 0,
     cpuFreq: 0,
     cpuFreqMax: 0,
-    cpuFreqPct: 0,
     latencyMean: 0.0,
     latencyP95: 0.0,
     fpsMean: 0.0,
@@ -116,48 +138,121 @@ const DeviceStatusPanel = ({ isInferenceRunning, setNotifications }: DeviceStatu
     }
   }, [isInferenceRunning]);
 
-  // Separate effect for handling warning and error messages based on metrics
+  // Updated status check function using the dynamic comparator
+  const checkStatus = useCallback(
+    (
+      value: number,
+      thresholdConfig: { warning: number; error: number; compare: ComparisonOperator }
+    ): "success" | "warning" | "error" => {
+      const { warning, error, compare } = thresholdConfig;
+      const comparator = getComparator(compare);
+
+      if (!comparator(value, warning)) return "success";
+      if (!comparator(value, error)) return "warning";
+      return "error";
+    },
+    [getComparator]
+  );
+
+  const checkStatusWithInference = useCallback(
+    (
+      value: number,
+      thresholdConfig: { warning: number; error: number; compare: ComparisonOperator },
+      isInferenceRunning: boolean,
+      updatesSinceInferenceStartedDelay: number,
+      noInferenceStatus: "info" | "stopped" | "pending" = "stopped"
+    ): "info" | "success" | "warning" | "error" | "stopped" | "pending" => {
+      if (!isInferenceRunning) return noInferenceStatus;
+      if (updatesSinceInferenceStarted <= updatesSinceInferenceStartedDelay) return "pending";
+      return checkStatus(value, thresholdConfig);
+    },
+    [checkStatus, updatesSinceInferenceStarted]
+  );
+
+  const allAlerts = useMemo(
+    () => ({
+      "device-status-cpu-usage": {
+        metricValue: metrics.cpuUsage,
+        status: checkStatus(metrics.cpuUsage, thresholds.cpu.usage),
+        warningMessage: "CPU Usage is high",
+        errorMessage: "CPU Usage is extremely high",
+      },
+      "device-status-cpu-temp": {
+        metricValue: metrics.temperature,
+        status: checkStatus(metrics.temperature, thresholds.cpu.temperature),
+        warningMessage: "CPU Temperature is high",
+        errorMessage: "CPU Temperature is extremely high",
+      },
+      "device-status-memory-usage": {
+        metricValue: metrics.memoryUsage,
+        status: checkStatus(metrics.memoryUsage, thresholds.memory),
+        warningMessage: "Memory Usage is high",
+        errorMessage: "Memory Usage is extremely high",
+      },
+      "device-status-disk-usage": {
+        metricValue: metrics.diskUsage,
+        status: checkStatus(metrics.diskUsage, thresholds.disk),
+        warningMessage: "Disk Usage is high",
+        errorMessage: "Disk Usage is extremely high",
+      },
+      "device-status-cpu-freq": {
+        metricValue: (metrics.cpuFreq / metrics.cpuFreqMax) * 100.0,
+        status: checkStatusWithInference(
+          (metrics.cpuFreq / metrics.cpuFreqMax) * 100.0,
+          thresholds.cpu.frequency,
+          isInferenceRunning,
+          2,
+          "info"
+        ),
+        warningMessage: "CPU Frequency is low",
+        errorMessage: "CPU Frequency is critically low",
+        updateDelay: 2,
+        noInferenceStatus: "info" as "info" | "stopped" | "pending",
+      },
+      "device-status-latency-p95": {
+        metricValue: metrics.latencyP95 / metrics.latencyMean,
+        status: checkStatusWithInference(
+          metrics.latencyP95 / metrics.latencyMean,
+          thresholds.performance.latency_p95,
+          isInferenceRunning,
+          2,
+          "stopped"
+        ),
+        warningMessage: "95% Latency is high",
+        errorMessage: "95% Latency is critically high",
+        updateDelay: 2,
+        noInferenceStatus: "stopped" as "info" | "stopped" | "pending",
+      },
+      "device-status-fps-mean": {
+        metricValue: 30.0 / metrics.fpsMean,
+        status: checkStatusWithInference(
+          30.0 / metrics.fpsMean,
+          thresholds.performance.fps_mean,
+          isInferenceRunning,
+          2,
+          "stopped"
+        ),
+        warningMessage: "Frame Rate is low",
+        errorMessage: "Frame Rate is critically low",
+        updateDelay: 2,
+        noInferenceStatus: "stopped" as "info" | "stopped" | "pending",
+      },
+    }),
+    [metrics, thresholds, checkStatus, checkStatusWithInference, isInferenceRunning]
+  );
+
+  // Separate effects for handling warning and error messages based on metrics
   useEffect(() => {
-    // Check CPU usage
-    const cpuUsageId = "device-status-cpu-usage";
-    if (metrics.cpuUsage >= thresholds.cpu.usage.error) {
-      addFlashMessage(cpuUsageId, "CPU Usage is extremely high", "error");
-    } else if (metrics.cpuUsage >= thresholds.cpu.usage.warning) {
-      addFlashMessage(cpuUsageId, "CPU Usage is getting high", "warning");
-    } else {
-      removeFlashMessage(cpuUsageId);
-    }
-
-    // Check CPU temperature
-    const cpuTempId = "device-status-cpu-temp";
-    if (metrics.temperature >= thresholds.cpu.temperature.error) {
-      addFlashMessage(cpuTempId, "CPU Temperature is extremely high", "error");
-    } else if (metrics.temperature >= thresholds.cpu.temperature.warning) {
-      addFlashMessage(cpuTempId, "CPU Temperature is getting high", "warning");
-    } else {
-      removeFlashMessage(cpuTempId);
-    }
-
-    // Check memory usage
-    const memoryUsageId = "device-status-memory-usage";
-    if (metrics.memoryUsage >= thresholds.memory.error) {
-      addFlashMessage(memoryUsageId, "Memory Usage is extremely high", "error");
-    } else if (metrics.memoryUsage >= thresholds.memory.warning) {
-      addFlashMessage(memoryUsageId, "Memory Usage is getting high", "warning");
-    } else {
-      removeFlashMessage(memoryUsageId);
-    }
-
-    // Check disk usage
-    const diskUsageId = "device-status-disk-usage";
-    if (metrics.diskUsage >= thresholds.disk.error) {
-      addFlashMessage(diskUsageId, "Disk Usage is extremely high", "error");
-    } else if (metrics.diskUsage >= thresholds.disk.warning) {
-      addFlashMessage(diskUsageId, "Disk Usage is getting high", "warning");
-    } else {
-      removeFlashMessage(diskUsageId);
-    }
-  }, [metrics, addFlashMessage, removeFlashMessage, thresholds]);
+    Object.entries(allAlerts).forEach(([alertId, data]) => {
+      if (data.status === "error") {
+        addFlashMessage(alertId, data.errorMessage, "error");
+      } else if (data.status === "warning") {
+        addFlashMessage(alertId, data.warningMessage, "warning");
+      } else {
+        removeFlashMessage(alertId);
+      }
+    });
+  }, [addFlashMessage, removeFlashMessage, allAlerts]);
 
   // Count updates since inference started
   useEffect(() => {
@@ -180,7 +275,6 @@ const DeviceStatusPanel = ({ isInferenceRunning, setNotifications }: DeviceStatu
             temperature: parseFloat(response.cpu_temp.toFixed(1)),
             cpuFreq: parseFloat(response.cpu_freq.toFixed(0)),
             cpuFreqMax: parseFloat(response.cpu_freq_max.toFixed(0)),
-            cpuFreqPct: (response.cpu_freq / response.cpu_freq_max) * 100,
             latencyMean: parseFloat(response.latency_mean.toFixed(1)),
             latencyP95: parseFloat(response.latency_p95.toFixed(1)),
             fpsMean: parseFloat(response.fps_mean.toFixed(1)),
@@ -197,42 +291,6 @@ const DeviceStatusPanel = ({ isInferenceRunning, setNotifications }: DeviceStatu
     return () => clearInterval(intervalId);
   }, []); // Remove updatesSinceInferenceStarted from dependency array
 
-  const checkStatus = (
-    value: number,
-    thresholdPair: [number, number]
-  ): "success" | "warning" | "error" => {
-    const [warning, error] = thresholdPair;
-    if (value < warning) return "success";
-    if (value < error) return "warning";
-    return "error";
-  };
-
-  const getCPUStatusType = (
-    value: number,
-    thresholdPair: [number, number],
-    isInferenceRunning: boolean
-  ): "info" | "success" | "warning" | "error" => {
-    if (!isInferenceRunning) return "info";
-    const [warning, error] = thresholdPair;
-    if (value > warning) return "success";
-    if (value > error) return "warning";
-    return "error";
-  };
-
-  const checkPerformanceStatus = (
-    value: number,
-    referenceValue: number,
-    thresholdPair: [number, number],
-    isInferenceRunning: boolean
-  ): "success" | "warning" | "error" | "stopped" | "pending" => {
-    if (!isInferenceRunning) return "stopped";
-    if (updatesSinceInferenceStarted <= 3) return "pending";
-    const [warning, error] = thresholdPair;
-    if (value/referenceValue < warning) return "success";
-    if (value/referenceValue < error) return "warning";
-    return "error";
-  };
-
   return (
     <SplitPanel header={"Car Health"} hidePreferencesButton={true} closeBehavior="collapse">
       <SpaceBetween size="xs" direction="vertical">
@@ -248,33 +306,17 @@ const DeviceStatusPanel = ({ isInferenceRunning, setNotifications }: DeviceStatu
             <Box variant="h4">CPU</Box>
             <div style={{ display: "grid", gridTemplateColumns: "100px auto", rowGap: "6px" }}>
               <Box>Usage:</Box>
-              <StatusIndicator
-                type={checkStatus(metrics.cpuUsage, [
-                  thresholds.cpu.usage.warning,
-                  thresholds.cpu.usage.error,
-                ])}
-              >
+              <StatusIndicator type={allAlerts["device-status-cpu-usage"].status}>
                 {metrics.cpuUsage}%
               </StatusIndicator>
 
               <Box>Temperature:</Box>
-              <StatusIndicator
-                type={checkStatus(metrics.temperature, [
-                  thresholds.cpu.temperature.warning,
-                  thresholds.cpu.temperature.error,
-                ])}
-              >
+              <StatusIndicator type={allAlerts["device-status-cpu-temp"].status}>
                 {metrics.temperature}°C
               </StatusIndicator>
 
               <Box>Frequency:</Box>
-              <StatusIndicator
-                type={getCPUStatusType(
-                  metrics.cpuFreqPct,
-                  [thresholds.cpu.frequency.warning, thresholds.cpu.frequency.error],
-                  isInferenceRunning && updatesSinceInferenceStarted > 2
-                )}
-              >
+              <StatusIndicator type={allAlerts["device-status-cpu-freq"].status}>
                 {metrics.cpuFreq} MHz / {metrics.cpuFreqMax} MHz
               </StatusIndicator>
             </div>
@@ -285,22 +327,12 @@ const DeviceStatusPanel = ({ isInferenceRunning, setNotifications }: DeviceStatu
             <Box variant="h4">Memory Usage</Box>
             <div style={{ display: "grid", gridTemplateColumns: "100px auto", rowGap: "6px" }}>
               <Box>RAM:</Box>
-              <StatusIndicator
-                type={checkStatus(metrics.memoryUsage, [
-                  thresholds.memory.warning,
-                  thresholds.memory.error,
-                ])}
-              >
+              <StatusIndicator type={allAlerts["device-status-memory-usage"].status}>
                 {metrics.memoryUsage}%
               </StatusIndicator>
 
               <Box>Disk:</Box>
-              <StatusIndicator
-                type={checkStatus(metrics.diskUsage, [
-                  thresholds.disk.warning,
-                  thresholds.disk.error,
-                ])}
-              >
+              <StatusIndicator type={allAlerts["device-status-disk-usage"].status}>
                 {metrics.diskUsage}%
               </StatusIndicator>
             </div>
@@ -311,38 +343,19 @@ const DeviceStatusPanel = ({ isInferenceRunning, setNotifications }: DeviceStatu
             <Box variant="h4">Performance</Box>
             <div style={{ display: "grid", gridTemplateColumns: "100px auto", rowGap: "6px" }}>
               <Box>Mean Latency:</Box>
-                <StatusIndicator
-                type={isInferenceRunning ? "info" : "stopped"}
-                >
+              <StatusIndicator type={isInferenceRunning ? "info" : "stopped"}>
                 {metrics.latencyMean.toFixed(1)} ms
-                </StatusIndicator>
+              </StatusIndicator>
               <Box>95% Latency:</Box>
-              <StatusIndicator
-                type={checkPerformanceStatus(
-                  metrics.latencyP95,
-                  metrics.latencyMean,
-                  [thresholds.performance.latency_p95.warning, thresholds.performance.latency_p95.error],
-                  isInferenceRunning
-                )}
-              >
+              <StatusIndicator type={allAlerts["device-status-latency-p95"].status}>
                 {metrics.latencyP95.toFixed(1)} ms
               </StatusIndicator>
               <Box>Frame Rate:</Box>
-              <StatusIndicator
-                type={checkPerformanceStatus(
-                  30.0,
-                  metrics.fpsMean,
-                  [thresholds.performance.fps_mean.warning, thresholds.performance.fps_mean.error],
-                  isInferenceRunning
-                )}
-              >
+              <StatusIndicator type={allAlerts["device-status-fps-mean"].status}>
                 {metrics.fpsMean.toFixed(1)} fps
               </StatusIndicator>
             </div>
           </SpaceBetween>
-
-          {/* Empty grid cell for layout balance */}
-          <div></div>
         </Grid>
       </SpaceBetween>
     </SplitPanel>
