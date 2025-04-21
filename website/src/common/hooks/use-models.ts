@@ -43,6 +43,7 @@ interface ModelsContextState {
   // Add flashbar items to the context
   modelFlashbarItems: FlashbarProps.MessageDefinition[];
   clearModelFlashbar: () => void;
+  checkModelLoadStatus: () => Promise<boolean>;
 }
 
 export const ModelsContext = createContext<ModelsContextState | null>(null);
@@ -82,43 +83,46 @@ export const useModelsProvider = () => {
   }, []);
 
   // Function to fetch available models
-  const fetchModels = useCallback(async () => {
-    // Don't fetch if not authenticated
-    if (!isAuthenticated) {
-      return [];
-    }
-
-    try {
-      const response = await ApiHelper.get<ModelsResponse>("models");
-      if (response) {
-        const options = response.models.map((model) => ({
-          label: model.model_folder_name,
-          value: model.model_folder_name,
-          description: model.model_sensors.join(", "),
-          disabled: model.is_select_disabled,
-        }));
-        setModelOptions(options);
-
-        // Restore previously selected model if it exists in the new list
-        const selectedModelName = localStorage.getItem("selectedModelName");
-        if (selectedModelName) {
-          const previousModel = options.find((model) => model.value === selectedModelName);
-          if (previousModel && isModelLoaded) {
-            setSelectedModel(previousModel);
-          } else {
-            // If the previous model is not found, clear the selection
-            setSelectedModel(null); 
-          }
-        }
-
-        return options;
+  const fetchModels = useCallback(
+    async (isModelLoaded: boolean) => {
+      // Don't fetch if not authenticated
+      if (!isAuthenticated) {
+        return [];
       }
-      return [];
-    } catch (error) {
-      console.error("Error fetching models:", error);
-      return [];
-    }
-  }, [isAuthenticated, isModelLoaded]);
+
+      try {
+        const response = await ApiHelper.get<ModelsResponse>("models");
+        if (response) {
+          const options = response.models.map((model) => ({
+            label: model.model_folder_name,
+            value: model.model_folder_name,
+            description: model.model_sensors.join(", "),
+            disabled: model.is_select_disabled,
+          }));
+          setModelOptions(options);
+
+          // Restore previously selected model if it exists in the new list
+          const selectedModelName = sessionStorage.getItem("selectedModelName");
+          if (selectedModelName) {
+            const previousModel = options.find((model) => model.value === selectedModelName);
+            if (previousModel && isModelLoaded) {
+              setSelectedModel(previousModel);
+            } else {
+              // If the previous model is not found, clear the selection
+              setSelectedModel(null);
+            }
+          }
+
+          return options;
+        }
+        return [];
+      } catch (error) {
+        console.error("Error fetching models:", error);
+        return [];
+      }
+    },
+    [isAuthenticated]
+  );
 
   // Function to check if a model is currently loaded
   const checkModelLoadStatus = useCallback(async () => {
@@ -140,103 +144,92 @@ export const useModelsProvider = () => {
       } else {
         setIsModelLoaded(false);
         setIsModelLoading(false);
+        setSelectedModel(null); // Clear selected model if loading failed
         return false;
       }
     } catch (error) {
       console.error("Error checking model status:", error);
       setIsModelLoaded(false);
       setIsModelLoading(false);
+      setSelectedModel(null); // Clear selected model if loading failed
       return false;
     }
   }, [isAuthenticated]);
 
   // Function to poll for model loading status with retry limit
-  const pollModelLoadingStatus = useCallback(
-    (retryCount = 0) => {
-      // Don't poll if not authenticated
-      if (!isAuthenticated) {
-        return;
-      }
+  const pollModelLoadingStatus = useCallback((retryCount = 0) => {
+    // Maximum number of retries (30 seconds with 1-second interval)
+    const MAX_RETRIES = 30;
 
-      // Maximum number of retries (30 seconds with 1-second interval)
-      const MAX_RETRIES = 30;
+    if (retryCount >= MAX_RETRIES) {
+      // Too many retries, stop polling
+      setLoadStatus({
+        loading: false,
+        success: false,
+        error: "Model loading timed out",
+      });
+      return;
+    }
 
-      if (retryCount >= MAX_RETRIES) {
-        // Too many retries, stop polling
-        setLoadStatus({
-          loading: false,
-          success: false,
-          error: "Model loading timed out",
-        });
-        return;
-      }
-
-      // Check model status
-      ApiHelper.get<ModelLoadingResponse>("isModelLoading")
-        .then((response) => {
-          if (response?.success) {
-            if (response.isModelLoading === "loaded") {
-              // Model loaded successfully
-              setIsModelLoaded(true);
-              setIsModelLoading(false);
-              setLoadStatus({
-                loading: false,
-                success: true,
-                error: null,
-              });
-            } else if (response.isModelLoading === "loading") {
-              // Still loading, continue polling
-              setIsModelLoaded(false);
-              setIsModelLoading(true);
-              setTimeout(() => pollModelLoadingStatus(retryCount + 1), 1000);
-            } else if (response.isModelLoading === "failed") {
-              // Loading failed
-              setIsModelLoaded(false);
-              setIsModelLoading(false);
-              setLoadStatus({
-                loading: false,
-                success: false,
-                error: "Model loading failed",
-              });
-            } else {
-              // Unknown state, try again
-              setIsModelLoaded(false);
-              setIsModelLoading(false);
-              setTimeout(() => pollModelLoadingStatus(retryCount + 1), 1000);
-            }
-          } else {
-            // API call failed
+    // Check model status
+    ApiHelper.get<ModelLoadingResponse>("isModelLoading")
+      .then((response) => {
+        if (response?.success) {
+          if (response.isModelLoading === "loaded") {
+            // Model loaded successfully
+            setIsModelLoaded(true);
+            setIsModelLoading(false);
+            setLoadStatus({
+              loading: false,
+              success: true,
+              error: null,
+            });
+          } else if (response.isModelLoading === "loading") {
+            // Still loading, continue polling
+            setIsModelLoaded(false);
+            setIsModelLoading(true);
+            setTimeout(() => pollModelLoadingStatus(retryCount + 1), 1000);
+          } else if (response.isModelLoading === "failed" || response.isModelLoading === "error") {
+            // Loading failed
             setIsModelLoaded(false);
             setIsModelLoading(false);
             setLoadStatus({
               loading: false,
               success: false,
-              error: "Error checking model loading status",
+              error: "Model loading failed",
             });
+          } else {
+            // Unknown state, try again
+            setIsModelLoaded(false);
+            setIsModelLoading(false);
+            setTimeout(() => pollModelLoadingStatus(retryCount + 1), 1000);
           }
-        })
-        .catch((error) => {
-          console.error("Error polling model status:", error);
+        } else {
+          // API call failed
           setIsModelLoaded(false);
           setIsModelLoading(false);
           setLoadStatus({
             loading: false,
             success: false,
-            error: error instanceof Error ? error.message : "Error checking model status",
+            error: "Error checking model loading status",
           });
+        }
+      })
+      .catch((error) => {
+        console.error("Error polling model status:", error);
+        setIsModelLoaded(false);
+        setIsModelLoading(false);
+        setLoadStatus({
+          loading: false,
+          success: false,
+          error: error instanceof Error ? error.message : "Error checking model status",
         });
-    },
-    [isAuthenticated]
-  );
+      });
+  }, []);
 
   // Function to load a model
   const loadModel = useCallback(
     async (modelName: string) => {
-      // Don't load if not authenticated
-      if (!isAuthenticated) {
-        return false;
-      }
-
       try {
         // Reset states
         setLoadStatus({
@@ -253,7 +246,7 @@ export const useModelsProvider = () => {
         );
 
         if (modelResponse?.success) {
-          localStorage.setItem("selectedModelName", modelName);
+          sessionStorage.setItem("selectedModelName", modelName);
 
           // Start polling with initial retry count of 0
           pollModelLoadingStatus(0);
@@ -278,19 +271,14 @@ export const useModelsProvider = () => {
         return false;
       }
     },
-    [pollModelLoadingStatus, isAuthenticated]
+    [pollModelLoadingStatus]
   );
 
   // Function to reload models list
   const reloadModels = useCallback(async () => {
-    // Don't reload if not authenticated
-    if (!isAuthenticated) {
-      return;
-    }
-
-    await fetchModels();
-    await checkModelLoadStatus();
-  }, [fetchModels, checkModelLoadStatus, isAuthenticated]);
+    const isModelLoaded = await checkModelLoadStatus();
+    await fetchModels(isModelLoaded);
+  }, [fetchModels, checkModelLoadStatus]);
 
   // Initialize models and check status on mount
   useEffect(() => {
@@ -311,11 +299,12 @@ export const useModelsProvider = () => {
     }
 
     const initialize = async () => {
-      const options = await fetchModels();
-      await checkModelLoadStatus();
+      console.debug("Initializing models...");
+      const isModelLoaded = await checkModelLoadStatus();
+      const options = await fetchModels(isModelLoaded);
 
       // Restore previously selected model
-      const selectedModelName = localStorage.getItem("selectedModelName");
+      const selectedModelName = sessionStorage.getItem("selectedModelName");
       if (selectedModelName && options.length > 0) {
         const previousModel = options.find((model) => model.value === selectedModelName);
         if (previousModel) {
@@ -381,6 +370,7 @@ export const useModelsProvider = () => {
     loadStatus,
     modelFlashbarItems,
     clearModelFlashbar,
+    checkModelLoadStatus,
   };
 
   return contextValue;
