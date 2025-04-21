@@ -197,7 +197,6 @@ const DeviceStatusPanel = ({ isInferenceRunning, setNotifications }: DeviceStatu
           ),
           warningMessage: "CPU Frequency is low",
           errorMessage: "CPU Frequency is critically low",
-          updateDelay: 2,
           noInferenceStatus: "info" as "info" | "stopped" | "pending",
         },
       },
@@ -219,7 +218,6 @@ const DeviceStatusPanel = ({ isInferenceRunning, setNotifications }: DeviceStatu
           ),
           warningMessage: "CPU Usage is high",
           errorMessage: "CPU Usage is extremely high",
-          updateDelay: 2,
         },
         "device-status-latency": {
           metricValue: metrics.latencyMean,
@@ -232,7 +230,6 @@ const DeviceStatusPanel = ({ isInferenceRunning, setNotifications }: DeviceStatu
           ),
           warningMessage: "Latency is high",
           errorMessage: "Latency is critically high",
-          updateDelay: 2,
           noInferenceStatus: "stopped" as "info" | "stopped" | "pending",
         },
         "device-status-latency-p95": {
@@ -246,7 +243,6 @@ const DeviceStatusPanel = ({ isInferenceRunning, setNotifications }: DeviceStatu
           ),
           warningMessage: "95% Latency is high",
           errorMessage: "95% Latency is critically high",
-          updateDelay: 2,
           noInferenceStatus: "stopped" as "info" | "stopped" | "pending",
         },
         "device-status-fps-mean": {
@@ -260,7 +256,6 @@ const DeviceStatusPanel = ({ isInferenceRunning, setNotifications }: DeviceStatu
           ),
           warningMessage: "Frame Rate is low",
           errorMessage: "Frame Rate is critically low",
-          updateDelay: 2,
           noInferenceStatus: "stopped" as "info" | "stopped" | "pending",
         },
       },
