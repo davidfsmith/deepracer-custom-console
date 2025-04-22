@@ -14,7 +14,7 @@ import {
   Toggle,
 } from "@cloudscape-design/components";
 import axios from "axios";
-import { useEffect, useRef, useState, useLayoutEffect } from "react";
+import { useEffect, useRef, useState, useLayoutEffect, useCallback } from "react";
 import { Joystick } from "react-joystick-component";
 import BaseAppLayout from "../components/base-app-layout";
 import DeviceStatusPanel from "../components/device-status-panel";
@@ -54,8 +54,15 @@ const HomePage = () => {
   const [expandedCameraSection, setExpandedCameraSection] = useState(true);
 
   // Get all model-related data from context
-  const { modelOptions, selectedModel, isModelLoaded, setSelectedModel, loadModel, reloadModels } =
-    useModels();
+  const {
+    modelOptions,
+    selectedModel,
+    isModelLoaded,
+    setSelectedModel,
+    loadModel,
+    reloadModels,
+    checkModelLoadStatus,
+  } = useModels();
   const { isAuthenticated } = useAuth();
 
   // Split panel
@@ -92,18 +99,35 @@ const HomePage = () => {
     return () => window.removeEventListener("resize", checkForScrollbars);
   }, [expandedCameraSection, defaultExpandCameraSection]);
 
+  const setDriveMode = useCallback(async (mode: "auto" | "manual") => {
+    try {
+      setIsInferenceRunning(false);
+      const response = await ApiHelper.post<DriveResponse>("drive_mode", {
+        drive_mode: mode,
+      });
+      console.log(`Drive mode set to ${mode}:`, response);
+
+    } catch (error) {
+      console.error(`Error setting drive mode to ${mode}:`, error);
+    }
+  }, []);
+
+  // Initialize only on component mount
   useEffect(() => {
     const initialize = async () => {
       await fetchSensorStatus();
+      await checkModelLoadStatus();
       setDriveMode("auto");
     };
 
     initialize();
 
+    // Cleanup function to stop vehicle when component unmounts
     return () => {
       handleStop();
     };
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); 
 
   useEffect(() => {
     const handleKeyPress = (event: KeyboardEvent) => {
@@ -133,22 +157,6 @@ const HomePage = () => {
   const handleReloadModels = async () => {
     if (isAuthenticated) {
       reloadModels();
-    }
-  };
-
-  const setDriveMode = async (mode: "auto" | "manual") => {
-    try {
-      setIsInferenceRunning(false);
-      const response = await ApiHelper.post<DriveResponse>("drive_mode", {
-        drive_mode: mode,
-      });
-      console.log(`Drive mode set to ${mode}:`, response);
-
-      if (response?.success && mode === "auto") {
-        handleAutoThrottle(0);
-      }
-    } catch (error) {
-      console.error(`Error setting drive mode to ${mode}:`, error);
     }
   };
 
@@ -196,6 +204,10 @@ const HomePage = () => {
 
   const handleStart = async () => {
     try {
+      
+      // Ensure throttle is set before starting
+      handleAutoThrottle(0);
+
       setIsInferenceRunning(true);
       const response = await ApiHelper.post<DriveResponse>("start_stop", {
         start_stop: "start",
