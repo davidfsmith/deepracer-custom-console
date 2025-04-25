@@ -2,6 +2,7 @@ import {
   Box,
   Button,
   ExpandableSection,
+  FlashbarProps,
   Grid,
   Header,
   KeyValuePairs,
@@ -16,9 +17,11 @@ import axios from "axios";
 import { useEffect, useRef, useState, useLayoutEffect, useCallback } from "react";
 import { Joystick } from "react-joystick-component";
 import BaseAppLayout from "../components/base-app-layout";
+import DeviceStatusPanel from "../components/device-status-panel";
 import { ApiHelper } from "../common/helpers/api-helper";
 import { useModels } from "../common/hooks/use-models";
 import { useAuth } from "../common/hooks/use-authentication";
+import { useSupportedApis } from "../common/hooks/use-supported-apis";
 
 // Add interfaces for API responses
 interface SensorStatusResponse {
@@ -62,6 +65,14 @@ const HomePage = () => {
   } = useModels();
   const { isAuthenticated } = useAuth();
 
+  // Split panel
+  const { isDeviceStatusSupported } = useSupportedApis();
+  const [isSplitPanelOpen, setIsSplitPanelOpen] = useState(false);
+  const [splitPanelSize, setSplitPanelSize] = useState(220);
+
+  const [localFlashMessages, setLocalFlashMessages] = useState<FlashbarProps.MessageDefinition[]>(
+    []
+  );
   // Check for scrollbars after render and on resize
   useLayoutEffect(() => {
     const checkForScrollbars = () => {
@@ -174,9 +185,6 @@ const HomePage = () => {
     // Cleanup on component unmount
     return () => {
       clearInterval(intervalId);
-      if (cameraImgRef.current) {
-        cameraImgRef.current.src = ""; // Clear camera feed source
-      }
     };
   }, []);
 
@@ -306,8 +314,7 @@ const HomePage = () => {
 
   return (
     <BaseAppLayout
-      // Any page-specific notifications can be passed as additionalNotifications
-      // additionalNotifications={[{...}]}  // Only if you have page-specific notifications
+      additionalNotifications={[...localFlashMessages]}
       content={
         <div ref={divLayoutRef}>
           <SpaceBetween size="l">
@@ -709,6 +716,19 @@ const HomePage = () => {
           </SpaceBetween>
         </div>
       }
+      splitPanel={
+        isDeviceStatusSupported ? (
+          <DeviceStatusPanel
+            isInferenceRunning={isInferenceRunning}
+            notifications={localFlashMessages}
+            setNotifications={setLocalFlashMessages}
+          />
+        ) : undefined
+      }
+      splitPanelOpen={isSplitPanelOpen}
+      splitPanelSize={splitPanelSize}
+      onSplitPanelToggle={({ detail }) => setIsSplitPanelOpen(detail.open)}
+      onSplitPanelResize={({ detail }) => setSplitPanelSize(detail.size)}
     />
   );
 };
