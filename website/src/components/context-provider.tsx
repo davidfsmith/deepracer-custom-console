@@ -5,6 +5,7 @@ import { SupportedApisContext, useSupportedApisProvider } from "../common/hooks/
 import { ModelsContext, useModelsProvider } from "../common/hooks/use-models";
 import { AuthContext, useAuthProvider } from "../common/hooks/use-authentication";
 import { PreferencesContext, usePreferencesProvider } from "../common/hooks/use-preferences";
+import { ApiContext, useApiProvider } from "../common/hooks/use-api";
 
 // Main Context Provider Component
 export const ContextProvider: React.FC<{
@@ -27,6 +28,14 @@ export const ContextProvider: React.FC<{
       </PreferencesContext.Provider>
     </SupportedApisContext.Provider>
   );
+};
+
+export const ApiProvider: React.FC<{
+  children: React.ReactNode;
+}> = ({ children }) => {
+  const apiValues = useApiProvider();
+
+  return <ApiContext.Provider value={apiValues}>{children}</ApiContext.Provider>;
 };
 
 // Auth Context Provider
