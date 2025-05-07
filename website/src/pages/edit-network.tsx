@@ -104,7 +104,7 @@ const ConnectUSBContainer = () => {
       <p>Use the included USB cable to connect your computer to the vehicle</p>
       <img src="static/usb_connect.svg" alt="Connect USB to Vehicle" />
       {isUsbConnected && <h3>Go to deepracer.aws</h3>}
-      {isUsbConnected && <p>After the USB connection has been detected, go to deepracer.aws and login to the system</p>}
+      {isUsbConnected && <p>After the USB connection has been detected, disable your network connection and then go to deepracer.aws and login to the system</p>}
       {isUsbConnected && <Button onClick={openDeepracerAws}>Go to deepracer.aws</Button>}
     </Container>
   );
@@ -119,7 +119,7 @@ export default function EditNetworkPage() {
           <SpaceBetween size="l">
             <h1>Edit Network Settings</h1>
             <NetworkSettingsContainer />
-            <ConnectUSBContainer />``
+            <ConnectUSBContainer />
           </SpaceBetween>
         </TextContent>
       }
