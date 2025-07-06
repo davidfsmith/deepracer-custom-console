@@ -36,7 +36,7 @@ interface PasswordResponse {
 interface SshResponse {
   success: boolean;
   isSshEnabled?: string;
-  isDefaultSshPasswordChanged?: string;
+  isDefaultSshPasswordChanged?: boolean;
 }
 
 interface DeviceInfoResponse {
@@ -66,8 +66,8 @@ let sshPasswordInputType: InputProps.Type = "password";
 let devicePasswordInputType: InputProps.Type = "password";
 
 let oldPasswordError = true;
-const validateOldPassword = (oldPassword: string) => {
-  if (oldPassword.length === 0) {
+const validateOldPassword = (oldPassword: string, oldPasswordChanged: boolean = false) => {
+  if (oldPassword.length === 0 && oldPasswordChanged) {
     oldPasswordError = true;
     return "Old password is required";
   } else {
@@ -427,7 +427,9 @@ const DeviceSshContainer = () => {
   const getIsSshDefaultPasswordChanged = async () => {
     const data = await ApiHelper.get<SshResponse>("isSshDefaultPasswordChanged");
     if (data?.success) {
-      setsshDefaultPasswordChanged(data.isDefaultSshPasswordChanged === "true");
+      setsshDefaultPasswordChanged(
+        data.isDefaultSshPasswordChanged ? data.isDefaultSshPasswordChanged : false
+      );
     }
   };
 
@@ -464,7 +466,7 @@ const DeviceSshContainer = () => {
       // TODO need to check this after flash
       setsshPasswordChanging(true);
       changePassword = await ApiHelper.post<PasswordResponse>("resetSshPassword", {
-        oldPassword: sshOldPassword,
+        oldPassword: "deepracer",
         newPassword: sshNewPassword,
       });
     }
@@ -473,6 +475,7 @@ const DeviceSshContainer = () => {
       setsshPasswordChanging(false);
       setsshPasswordModal(false);
       setsshPasswordChangedSuccessVisible(true);
+      setsshDefaultPasswordChanged(true);
     } else {
       setsshPasswordChangedErrorVisible(true);
       setsshPasswordChanging(false);
@@ -492,7 +495,6 @@ const DeviceSshContainer = () => {
   };
 
   const showSSHPasswordModal = (visible: boolean) => {
-    getIsSshDefaultPasswordChanged();
     setsshPasswordChangedErrorVisible(false);
     setsshPasswordErrorVisible(false);
     setsshPasswordChanging(false);
@@ -568,7 +570,7 @@ const DeviceSshContainer = () => {
                 disabled={
                   sshData.isSshEnabled == "Unknown" ? true : sshData.isSshEnabled ? false : true
                 }
-                onClick={() => setsshPasswordModal(true)}
+                onClick={() => showSSHPasswordModal(true)}
               >
                 Change SSH Password
               </Button>
@@ -650,7 +652,7 @@ const DeviceSshContainer = () => {
               {sshDefaultPasswordChanged ? (
                 <FormField
                   label="Old password"
-                  warningText={validateOldPassword(sshOldPassword)}
+                  warningText={validateOldPassword(sshOldPassword, sshDefaultPasswordChanged)}
                   constraintText={
                     sshDefaultPasswordChanged
                       ? null
