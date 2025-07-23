@@ -1,6 +1,6 @@
 import axios, { AxiosResponse } from "axios";
 import { createContext, useContext } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 
 // Define the API Context type
 interface ApiContextType {
@@ -23,11 +23,13 @@ export const useApi = () => {
 // Hook to provide API context values
 export const useApiProvider = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const DEFAULT_TIMEOUT = 10000; // 10 seconds
 
-  const get = async <T,>(path: string): Promise<T | null> => {
+  const get = async <T>(path: string): Promise<T | null> => {
     try {
       const response: AxiosResponse<T> = await axios.get("/api/" + path, {
-        timeout: 10000, // 10 seconds timeout
+        timeout: DEFAULT_TIMEOUT,
       });
       return response.data;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -35,7 +37,7 @@ export const useApiProvider = () => {
       if (error.response?.status === 401) {
         console.log("Unauthorized");
         // Only redirect if we're not already on the login page
-        if (!window.location.pathname.includes("/login")) {
+        if (!location.pathname.includes("/login")) {
           navigate("/login");
         }
         return null;
@@ -56,7 +58,14 @@ export const useApiProvider = () => {
           message: error.message,
           status: error.request?.status,
         });
-        navigate("/system-unavailable");
+        // Don't redirect to system-unavailable if we're on the software update page
+        // or already on system-unavailable
+        if (
+          !location.pathname.includes("/software-update") &&
+          !location.pathname.includes("/system-unavailable")
+        ) {
+          navigate("/system-unavailable");
+        }
         return null;
       }
       console.error("Error getting api " + path + ":", error);
@@ -64,10 +73,10 @@ export const useApiProvider = () => {
     }
   };
 
-  const post = async <T,>(path: string, data: unknown): Promise<T | null> => {
+  const post = async <T>(path: string, data: unknown): Promise<T | null> => {
     try {
       const response: AxiosResponse<T> = await axios.post("/api/" + path, data, {
-        timeout: 10000, // 10 seconds timeout
+        timeout: DEFAULT_TIMEOUT,
       });
       return response.data;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -75,7 +84,7 @@ export const useApiProvider = () => {
       if (error.response?.status === 401) {
         console.log("Unauthorized");
         // Only redirect if we're not already on the login page
-        if (!window.location.pathname.includes("/login")) {
+        if (!location.pathname.includes("/login")) {
           navigate("/login");
         }
         return null;
@@ -96,7 +105,14 @@ export const useApiProvider = () => {
           message: error.message,
           status: error.request?.status,
         });
-        navigate("/system-unavailable");
+        // Don't redirect to system-unavailable if we're on the software update page
+        // or already on system-unavailable
+        if (
+          !location.pathname.includes("/software-update") &&
+          !location.pathname.includes("/system-unavailable")
+        ) {
+          navigate("/system-unavailable");
+        }
         return null;
       }
       console.error("Error posting to api " + path + ":", error);
