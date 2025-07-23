@@ -31,6 +31,10 @@ const handleStop = async () => {
   await ApiHelper.post<CalibrationResponse>("start_stop", { start_stop: "stop" });
 };
 
+const handleStart = async () => {
+  await ApiHelper.post<CalibrationResponse>("start_stop", { start_stop: "start" });
+};
+
 const setSteeringAngle = async (angle: number) => {
   await ApiHelper.post<AdjustWheelsResponse>("adjust_calibrating_wheels/angle", {
     pwm: angle,
@@ -67,6 +71,7 @@ export default function RecalibrateSteeringPage() {
   const [originalRight, setOriginalRight] = useState(0);
 
   const lastUpdateTime = useRef<number>(0);
+  const actionRef = useRef(false);
 
   const handleCenterSliderChange = ({ detail }: { detail: { value: number } }) => {
     const now = Date.now();
@@ -163,7 +168,6 @@ export default function RecalibrateSteeringPage() {
       }
     };
 
-    handleStop();
     fetchCalibrationValues();
     setCalibration();
     window.location.hash = "#ground";
@@ -171,9 +175,22 @@ export default function RecalibrateSteeringPage() {
   }, []);
 
   useEffect(() => {
+    return () => {
+      if (!actionRef.current) {
+        console.log(
+          "Abort steering calibration. Resetting steering angle to original center value."
+        );
+        setSteeringAngle(originalCenter);
+        handleStop();
+      }
+    };
+  }, [originalCenter]);
+
+  useEffect(() => {
     const handleHashChange = () => {
       setActiveAnchor(window.location.hash);
       if (window.location.hash === "#center") {
+        handleStart();
         setSteeringAngle(centerValue);
       } else if (window.location.hash === "#left") {
         setLeftValue((prev) => -Math.abs(prev));
@@ -227,14 +244,29 @@ export default function RecalibrateSteeringPage() {
   };
 
   const handleCancel = async () => {
+    actionRef.current = true;
     await setSteeringAngle(originalCenter);
     await handleStop();
+    console.log(
+      "Cancelled steering calibration. Resetting steering angle to original center value."
+    );
     navigate("/calibration");
   };
 
   const handleDone = async () => {
+    actionRef.current = true;
     await setSteeringAngle(centerValue);
     await setCalibrationAngle(centerValue, leftValue, rightValue, polarity);
+    console.log(
+      "Saved steering calibration. Left:",
+      leftValue,
+      "Center:",
+      centerValue,
+      "Right:",
+      rightValue
+    );
+
+    await handleStop();
     navigate("/calibration");
   };
 
